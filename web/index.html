@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Territory 2026 — прототип</title>
+<link rel="stylesheet" href="style.css?v=16">
+</head>
+<body>
+<div class="phone">
+
+  <header class="topbar">
+    <button id="backBtn" class="icon-btn hidden">‹</button>
+    <button id="menuBtn" class="icon-btn">☰</button>
+    <h1 id="screenTitle">Territory</h1>
+    <button class="icon-btn">⚙</button>
+  </header>
+
+  <main id="screens">
+
+    <!-- ГЛАВНАЯ -->
+    <section class="screen active" data-screen="home">
+      <div class="card profile-card">
+        <div class="avatar-ring" id="p-avatar-ring"><div class="avatar">🧍</div><span class="avatar-lvl" id="p-avatar-lvl">4</span></div>
+        <div class="profile-info">
+          <div class="profile-name" id="p-name">Shadow</div>
+          <div class="profile-row">Уровень: <b id="p-level">4</b></div>
+          <div class="profile-row">Репутация: <b id="p-rep">120</b></div>
+          <div class="profile-row">Район: <b id="p-district">Новый город</b></div>
+          <div class="bar-row">
+            <span class="bar-label">HP: <span id="p-hp-text">115 / 115</span></span>
+            <div class="bar"><div class="bar-fill hp" id="p-hp-bar" style="width:100%"></div></div>
+          </div>
+          <div class="bar-row">
+            <span class="bar-label">EXP: <span id="p-exp-text">240 / 500</span></span>
+            <div class="bar"><div class="bar-fill exp" id="p-exp-bar" style="width:48%"></div></div>
+          </div>
+          <div class="bar-row">
+            <span class="bar-label">Энергия: <span id="p-energy-text">80 / 100</span></span>
+            <div class="bar"><div class="bar-fill energy" id="p-energy-bar" style="width:80%"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="busy-banner hidden" id="homeBusyBanner">⏳ <span id="busyBannerText"></span></div>
+      <div class="ticker-banner hidden" id="clanTaxBanner"></div>
+
+      <div class="currency-row">
+        <div class="currency">Т <span id="p-rub">12 450</span></div>
+        <div class="currency">⭐ <span id="p-stars">25</span></div>
+        <button class="icon-btn small" id="addFundsBtn">+</button>
+      </div>
+
+      <div class="menu-grid">
+        <button class="menu-tile" data-goto="map"><span class="mt-icon">📍</span><span class="mt-title">КАРТА</span><span class="mt-sub">перемещение по районам</span></button>
+        <button class="menu-tile" data-goto="battle"><span class="mt-icon">⚔️</span><span class="mt-title">БОЙ</span><span class="mt-sub">тактические сражения</span></button>
+        <button class="menu-tile" data-goto="inventory"><span class="mt-icon">📦</span><span class="mt-title">ИНВЕНТАРЬ</span><span class="mt-sub">ваши предметы</span></button>
+        <button class="menu-tile" data-goto="character"><span class="mt-icon">🧍</span><span class="mt-title">ПЕРСОНАЖ</span><span class="mt-sub">параметры и развитие</span></button>
+        <button class="menu-tile" data-goto="craft"><span class="mt-icon">🔨</span><span class="mt-title">ПРОФЕССИИ</span><span class="mt-sub">крафт по специализациям</span></button>
+        <button class="menu-tile" data-goto="work"><span class="mt-icon">🏭</span><span class="mt-title">РАБОТА</span><span class="mt-sub">добыча ресурсов</span></button>
+        <button class="menu-tile" data-goto="shop"><span class="mt-icon">🛒</span><span class="mt-title">МАГАЗИН</span><span class="mt-sub">покупка предметов</span></button>
+        <button class="menu-tile" data-goto="chat"><span class="mt-icon">💬</span><span class="mt-title">ЧАТ РАЙОНА</span><span class="mt-sub">общение с игроками</span></button>
+        <button class="menu-tile" data-goto="arena"><span class="mt-icon">🏟️</span><span class="mt-title">АРЕНА</span><span class="mt-sub">PvP с живыми игроками</span></button>
+        <button class="menu-tile" data-goto="auction"><span class="mt-icon">📜</span><span class="mt-title">АУКЦИОН</span><span class="mt-sub">купить и продать вещи</span></button>
+      </div>
+
+      <div class="card" id="districtFlavorCard">
+        <div class="card-title" id="districtFlavorName">Новый город</div>
+        <p class="dim" id="districtFlavorDesc">Биржевая площадь, вокзальная суета, приезжие и барыги.</p>
+      </div>
+    </section>
+
+    <!-- КАРТА ГОРОДА -->
+    <section class="screen" data-screen="map">
+      <div class="row-between">
+        <div>Район: <b id="map-current">Downtown</b></div>
+        <button class="btn ghost small" id="changeDistrictBtn">Сменить район</button>
+      </div>
+
+      <div class="district-grid" id="districtGrid"></div>
+
+      <div class="card">
+        <div class="card-title">Описание района</div>
+        <div class="district-image" id="districtImage">🏙️</div>
+        <p class="dim" id="districtDesc">Торговые улицы, забегаловки, толпы людей. Здесь крутятся деньги и решаются мелкие дела.</p>
+        <div class="dim" id="districtLevelLine">Рекомендуемый уровень: <b id="districtLevel">2 - 6</b></div>
+        <div id="districtOwnerLine"></div>
+        <div id="districtWarLine"></div>
+      </div>
+
+      <button class="btn primary full" id="travelBtn">ПЕРЕМЕСТИТЬСЯ <span id="travelTimer" class="timer-inline"></span></button>
+    </section>
+
+    <!-- БОЙ -->
+    <section class="screen" data-screen="battle">
+      <div id="battleSelectView">
+        <div class="row-between">
+          <div>Район: <b id="battleDistrictName">Downtown</b></div>
+        </div>
+        <div id="battleTargetList" class="clan-list"></div>
+      </div>
+      <div id="battleFightView" class="hidden" style="display:flex;flex-direction:column;gap:14px;">
+      <div class="card enemy-card">
+        <div class="enemy-info">
+          <div class="card-title" id="enemyName">Хулиган</div>
+          <div class="dim">Уровень: <span id="enemyLevel">3</span></div>
+          <div class="bar-row">
+            <span class="bar-label">HP: <span id="enemy-hp-text">68 / 100</span></span>
+            <div class="bar"><div class="bar-fill hp" id="enemy-hp-bar" style="width:68%"></div></div>
+          </div>
+        </div>
+        <div class="avatar enemy-avatar">🧍</div>
+      </div>
+
+      <div class="card">
+        <div class="bar-row">
+          <span class="bar-label">Ваше HP: <span id="battle-p-hp-text">115 / 115</span></span>
+          <div class="bar"><div class="bar-fill hp" id="battle-p-hp-bar" style="width:100%"></div></div>
+        </div>
+      </div>
+
+      <div id="battleResult" class="hidden"></div>
+
+      <div id="battleActiveArea">
+      <div class="row-between">
+        <b>Ваш ход</b>
+        <span class="timer-chip">⏱ <span id="turnTimer">15</span>s</span>
+      </div>
+
+      <div class="zone-columns">
+        <div class="zone-block">
+          <div class="zone-label attack">УДАР</div>
+          <div class="zone-grid" data-group="attack">
+            <button class="zone-btn" data-zone="head">👤<span>ГОЛОВА</span></button>
+            <button class="zone-btn" data-zone="chest">👕<span>ГРУДЬ</span></button>
+            <button class="zone-btn" data-zone="belly">🧍<span>ЖИВОТ</span></button>
+            <button class="zone-btn" data-zone="legs">🦵<span>НОГИ</span></button>
+          </div>
+        </div>
+
+        <div class="zone-block">
+          <div class="zone-label block">БЛОК</div>
+          <div class="zone-grid" data-group="block">
+            <button class="zone-btn" data-zone="head">👤<span>ГОЛОВА</span></button>
+            <button class="zone-btn" data-zone="chest">🦺<span>ГРУДЬ</span></button>
+            <button class="zone-btn" data-zone="belly">🧍<span>ЖИВОТ</span></button>
+            <button class="zone-btn" data-zone="legs">🦵<span>НОГИ</span></button>
+          </div>
+        </div>
+      </div>
+
+      <div class="dim">Боевой набор:</div>
+      <div class="items-row" id="battleSlotsRow"></div>
+
+      <button class="btn primary full" id="endTurnBtn">ЗАВЕРШИТЬ ХОД</button>
+      </div>
+
+      <div class="card log-card">
+        <div class="card-title">Лог боя</div>
+        <div id="battleLog" class="battle-log"></div>
+      </div>
+      </div>
+    </section>
+
+    <!-- ПЕРСОНАЖ -->
+    <section class="screen" data-screen="character">
+      <div class="tabs" data-group="charTab">
+        <button class="tab active" data-tab="stats">Параметры</button>
+        <button class="tab" data-tab="equip">Экипировка</button>
+        <button class="tab" data-tab="ach">Достижения</button>
+      </div>
+
+      <div class="tab-panel active" data-panel="stats">
+        <div class="bar-row">
+          <span class="bar-label">Уровень: <b id="c-level">4</b></span>
+          <span class="dim" id="c-exp-text">240 / 500</span>
+        </div>
+        <div class="bar"><div class="bar-fill exp" id="c-exp-bar" style="width:48%"></div></div>
+
+        <div class="row-between free-points">
+          <span>Свободные очки:</span> <b id="freePoints">3</b>
+        </div>
+
+        <div class="stat-list">
+          <div class="stat-row">
+            <span class="stat-icon">💪</span><span class="stat-name">Сила</span>
+            <b id="stat-str">14</b>
+            <button class="stat-plus" data-stat="str">+</button>
+          </div>
+          <div class="stat-row">
+            <span class="stat-icon">🏃</span><span class="stat-name">Ловкость</span>
+            <b id="stat-agi">12</b>
+            <button class="stat-plus" data-stat="agi">+</button>
+          </div>
+          <div class="stat-row">
+            <span class="stat-icon">❤️</span><span class="stat-name">Здоровье</span>
+            <b id="stat-hp">16</b>
+            <button class="stat-plus" data-stat="hp">+</button>
+          </div>
+          <div class="stat-row">
+            <span class="stat-icon">⭐</span><span class="stat-name">Удача</span>
+            <b id="stat-luck">10</b>
+            <button class="stat-plus" data-stat="luck">+</button>
+          </div>
+        </div>
+
+        <div class="card-title">Основные показатели</div>
+        <div class="derived-grid">
+          <div class="derived-item"><span class="dim">HP</span><b id="d-hp">115</b></div>
+          <div class="derived-item"><span class="dim">Защита</span><b id="d-def">34%</b></div>
+          <div class="derived-item"><span class="dim">Атака</span><b id="d-atk">28</b></div>
+          <div class="derived-item"><span class="dim">Уклонение</span><b id="d-dodge">8%</b></div>
+          <div class="derived-item"><span class="dim">Шанс крита</span><b id="d-crit">3%</b></div>
+          <div class="derived-item"><span class="dim">Инициатива</span><b id="d-init">12</b></div>
+        </div>
+
+        <button class="btn ghost full">Подробные характеристики</button>
+        <div id="activeElixirsRoot"></div>
+      </div>
+
+      <div class="tab-panel" data-panel="equip">
+        <div id="equipRoot"></div>
+      </div>
+      <div class="tab-panel" data-panel="ach">
+        <div id="achRoot"></div>
+      </div>
+    </section>
+
+    <!-- ИНВЕНТАРЬ -->
+    <section class="screen" data-screen="inventory">
+      <div class="card">
+        <div class="card-title">🎯 Боевой набор</div>
+        <p class="dim" style="margin:0 0 10px;">4 слота на бой. Пустой — выберите расходник или зелье Фармацевта. 4-й слот открывается репутацией Echo Territory.</p>
+        <div class="items-row" id="loadoutRow"></div>
+        <div id="loadoutPicker"></div>
+      </div>
+
+      <div class="tabs" data-group="invTab">
+        <button class="tab active" data-tab="all">Все</button>
+        <button class="tab" data-tab="weapon">Оружие</button>
+        <button class="tab" data-tab="armor">Броня</button>
+        <button class="tab" data-tab="consumable">Расходники</button>
+        <button class="tab" data-tab="material">Материалы</button>
+      </div>
+
+      <div class="item-grid" id="invGrid"></div>
+      <div id="invDetail"></div>
+
+      <div class="row-between capacity-row">
+        <span class="dim">Вместимость: <b id="invCap">28 / 50</b></span>
+        <button class="btn ghost small" id="expandInvBtn">РАСШИРИТЬ +</button>
+      </div>
+    </section>
+
+    <!-- ПРОФЕССИИ -->
+    <section class="screen" data-screen="craft">
+      <div id="professionsRoot"></div>
+    </section>
+
+    <!-- РАБОТА -->
+    <section class="screen" data-screen="work">
+      <div class="card work-card">
+        <div class="district-image" id="workImage">🏭</div>
+        <div class="card-title" id="workTitle">Промышленный</div>
+        <div class="dim" id="workSubtitle">Сбор металлолома</div>
+        <p class="dim" id="workDesc">Ищите металл среди мусора и старых конструкций.</p>
+
+        <div class="work-timer-block">
+          <div class="dim">До завершения:</div>
+          <div class="work-timer" id="workTimer">08:24</div>
+        </div>
+
+        <div class="dim">Возможные находки:</div>
+        <div class="items-row" id="workFindsRow"></div>
+
+        <button class="btn primary full" id="workBtn">ПРЕРВАТЬ РАБОТУ</button>
+      </div>
+    </section>
+
+    <!-- МАГАЗИН -->
+    <section class="screen" data-screen="shop">
+      <div class="row-between">
+        <div class="currency">Т <span id="shop-rub">12 450</span></div>
+        <div class="currency">⭐ <span id="shop-stars">25</span></div>
+      </div>
+
+      <div class="tabs" data-group="shopTab">
+        <button class="tab active" data-tab="weapon">Оружие</button>
+        <button class="tab" data-tab="clothing">Одежда</button>
+        <button class="tab" data-tab="meds">Медикаменты</button>
+        <button class="tab" data-tab="povar">Всё для повара</button>
+        <button class="tab" data-tab="travnik">Всё для травника</button>
+        <button class="tab" data-tab="farmacevt">Всё для Фармацевта</button>
+        <button class="tab" data-tab="oruzejnik">Всё для Оружейника</button>
+        <button class="tab" data-tab="juvelir">Всё для Ювелира</button>
+        <button class="tab" data-tab="portnoy">Всё для Портного</button>
+      </div>
+
+      <div id="shopList" class="shop-list"></div>
+    </section>
+
+    <!-- ЧАТ РАЙОНА -->
+    <section class="screen" data-screen="chat">
+      <div class="tabs" data-group="chatTab">
+        <button class="tab active" data-tab="chat">Чат</button>
+        <button class="tab" data-tab="online" id="onlineTabBtn">Онлайн</button>
+      </div>
+
+      <div class="chat-messages" id="chatMessages"></div>
+
+      <div class="chat-input-row">
+        <input type="text" id="chatInput" placeholder="Написать сообщение...">
+        <button class="icon-btn" id="chatSendBtn">➤</button>
+      </div>
+    </section>
+
+    <!-- КЛАН -->
+    <section class="screen" data-screen="clan">
+      <div id="clanRoot"></div>
+    </section>
+
+    <!-- АРЕНА -->
+    <section class="screen" data-screen="arena">
+      <div id="arenaRoot"></div>
+    </section>
+
+    <!-- АУКЦИОН -->
+    <section class="screen" data-screen="auction">
+      <div id="auctionRoot"></div>
+    </section>
+
+    <!-- ВОЙНА ЗА ТЕРРИТОРИЮ -->
+    <section class="screen" data-screen="territorywar">
+      <div id="warRoot"></div>
+    </section>
+
+    <!-- ЧАТ КЛАНА -->
+    <section class="screen" data-screen="clanchat">
+      <div id="clanChatHeader"></div>
+      <div class="chat-messages" id="clanChatMessages"></div>
+      <div class="chat-input-row">
+        <input type="text" id="clanChatInput" placeholder="Написать в клан...">
+        <button class="icon-btn" id="clanChatSendBtn">➤</button>
+      </div>
+    </section>
+
+    <!-- ПРОФИЛЬ ИГРОКА -->
+    <section class="screen" data-screen="playerProfile">
+      <div id="playerProfileRoot"></div>
+    </section>
+
+    <!-- ЗАГЛУШКА -->
+    <section class="screen" data-screen="stub">
+      <p class="dim center-pad" id="stubText">Раздел появится в следующей версии.</p>
+    </section>
+
+  </main>
+
+  <nav class="bottomnav">
+    <button class="nav-btn active" data-goto="home"><span>🏠</span>Главная</button>
+    <button class="nav-btn" data-goto="stub" data-title="Задания">📋<span></span>Задания</button>
+    <button class="nav-btn" data-goto="stub" data-title="Друзья">👥<span></span>Друзья</button>
+    <button class="nav-btn" data-goto="clan">🛡️<span></span>Клан</button>
+    <button class="nav-btn" data-goto="character">👤Профиль</button>
+  </nav>
+
+</div>
+
+<div id="toast"></div>
+
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="app.js?v=27"></script>
+<script src="persistence.js?v=1"></script>
+</body>
+</html>
