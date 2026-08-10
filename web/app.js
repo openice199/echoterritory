@@ -137,6 +137,14 @@ function unequipItem(slotKey){
 
 function findItem(id){ return state.inventory.find(i => i.id === id); }
 function itemCount(id){ const it = findItem(id); return it ? it.count : 0; }
+// Списывает предмет и убирает его из инвентаря при обнулении — иначе, как уже было
+// с зельями/расходниками в бою, остаётся "призрачная" карточка с иконкой, которую
+// нельзя использовать (count=0), но она никуда не девается из списка.
+function spendItem(item, qty){
+  if (!item) return;
+  item.count -= (qty || 1);
+  if (item.count <= 0) state.inventory = state.inventory.filter(x => x !== item);
+}
 
 /* ===== Districts ===== */
 const districts = [
@@ -459,7 +467,7 @@ function useCombatSlot(idx){
   }
   const heal = INSTANT_HEAL_ITEMS[item.id];
   if (heal === undefined) return;
-  item.count--;
+  spendItem(item, 1);
   state.player.hp = Math.min(state.player.maxHp, state.player.hp + heal);
   logLine(`Вы использовали ${item.name} (+${heal} HP)`, "heal");
   renderBattle(); renderHome();
@@ -2699,7 +2707,7 @@ function formatTime(sec){
 }
 
 function doCraft(r){
-  r.reqs.forEach(req => { findItem(req.id).count -= req.need * craftQty; });
+  r.reqs.forEach(req => { spendItem(findItem(req.id), req.need * craftQty); });
   const existing = findItem(r.id);
   if (existing) existing.count += craftQty;
   else state.inventory.push({ id:r.id, name:r.name, icon:r.icon, cat:"weapon", count:craftQty });
@@ -2845,8 +2853,8 @@ function renderCookingView(){
 function startCooking(recipeId){
   if (isBusy()){ toast(`Вы заняты (${busyLabel()})`); return; }
   const r = cookRecipes.find(x => x.id === recipeId);
-  findItem(r.fishId).count -= 5;
-  findItem("plate").count -= 1;
+  spendItem(findItem(r.fishId), 5);
+  spendItem(findItem("plate"), 1);
   renderInventory("all");
   cookingActive = true;
   cookingTargetId = recipeId;
@@ -3000,8 +3008,8 @@ function renderBrewView(){
 function startBrew(recipeId){
   if (isBusy()){ toast(`Вы заняты (${busyLabel()})`); return; }
   const r = elixirRecipes.find(x => x.id === recipeId);
-  findItem("dandelion").count -= r.dandelionsNeed;
-  findItem("vial").count -= 1;
+  spendItem(findItem("dandelion"), r.dandelionsNeed);
+  spendItem(findItem("vial"), 1);
   renderInventory("all");
   brewActive = true;
   brewTargetId = recipeId;
@@ -3155,8 +3163,8 @@ function renderPotionBrewView(){
 function startBrewPotion(recipeId){
   if (isBusy()){ toast(`Вы заняты (${busyLabel()})`); return; }
   const r = potionRecipes.find(x => x.id === recipeId);
-  findItem("seaweed").count -= r.seaweedNeed;
-  findItem("thickener").count -= 1;
+  spendItem(findItem("seaweed"), r.seaweedNeed);
+  spendItem(findItem("thickener"), 1);
   renderInventory("all");
   potionBrewActive = true;
   potionBrewTargetId = recipeId;
@@ -3314,8 +3322,8 @@ function renderForgeView(){
 function startForge(recipeId){
   if (isBusy()){ toast(`Вы заняты (${busyLabel()})`); return; }
   const r = smithRecipes.find(x => x.id === recipeId);
-  findItem("scrap").count -= r.scrapNeed;
-  findItem("coal").count -= 1;
+  spendItem(findItem("scrap"), r.scrapNeed);
+  spendItem(findItem("coal"), 1);
   renderInventory("all");
   forgeActive = true;
   forgeTargetId = recipeId;
@@ -3476,8 +3484,8 @@ function renderSetView(){
 function startSet(recipeId){
   if (isBusy()){ toast(`Вы заняты (${busyLabel()})`); return; }
   const r = jewelryRecipes.find(x => x.id === recipeId);
-  findItem("gem").count -= r.gemsNeed;
-  findItem("mount").count -= 1;
+  spendItem(findItem("gem"), r.gemsNeed);
+  spendItem(findItem("mount"), 1);
   renderInventory("all");
   setActive = true;
   setTargetId = recipeId;
@@ -3647,8 +3655,8 @@ function renderSewView(){
 
 function startSew(catalogId, fabricNeed){
   if (isBusy()){ toast(`Вы заняты (${busyLabel()})`); return; }
-  findItem("fabric").count -= fabricNeed;
-  findItem("goldThread").count -= 1;
+  spendItem(findItem("fabric"), fabricNeed);
+  spendItem(findItem("goldThread"), 1);
   renderInventory("all");
   sewActive = true;
   sewTargetId = catalogId;
@@ -4492,7 +4500,7 @@ function performEnemyAttack(blkZone){
 function drinkPotionInBattle(item){
   if (battleOver) return;
   if (activeHot){ toast("Зелье уже действует, дождитесь окончания"); return; }
-  item.count--;
+  spendItem(item, 1);
   activeHot = { name:item.name, hotMin:item.hotMin, hotMax:item.hotMax, turnsLeft: HOT_TURNS };
   logLine(`Вы выпили ${item.name}. Восстановление начнётся со следующего хода.`, "heal");
   clearInterval(turnTimerHandle);
