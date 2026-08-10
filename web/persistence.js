@@ -172,6 +172,15 @@
     if (Array.isArray(saved.state.inventory)) state.inventory = saved.state.inventory;
     if (saved.state.capacity) Object.assign(state.capacity, saved.state.capacity);
     if (saved.state.market) state.market = saved.state.market;
+    // currentDistrictId — отдельная переменная в app.js (используется картой, travel-кнопкой
+    // и проверками "вы на нужной локации" для сбора ресурсов), а не часть state.player — при
+    // загрузке синхронизируем её с сохранённым названием района, иначе она остаётся на
+    // жёстко заданном стартовом значении и игра "забывает" последнее перемещение игрока.
+    if (state.player.district && typeof districts !== "undefined"){
+      const loc = districts.find(x => x.name === state.player.district)
+        || (typeof professionSpots !== "undefined" && professionSpots.find(x => x.name === state.player.district));
+      if (loc) currentDistrictId = loc.id;
+    }
     return true;
   }
 
