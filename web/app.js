@@ -929,6 +929,7 @@ function clanDailyTax(c){
 function myClan(){ return clans.find(c => c.id === state.player.clanId) || null; }
 
 function renderName(){
+  if (typeof realClan !== "undefined" && realClan) return `${realClan.icon} <span class="clan-tag">[${realClan.tag}]</span> ${state.player.name}`;
   const c = myClan();
   if (!c) return state.player.name;
   return `${c.icon} <span class="clan-tag">[${c.tag}]</span> ${state.player.name}`;
@@ -1290,6 +1291,245 @@ function sendClanChat(clan){
   });
   input.value = "";
   renderClanChatMessages(clan);
+}
+
+/* ===== Реальные кланы (общая база на сервере, см. server/db.js + server/server.js) =====
+   Отдельно от старой мок-системы выше (clans/myClan/renderClan) — та по-прежнему
+   держит арену и войны за территории на выдуманных ботах, это осознанно не трогаем
+   в этом проходе. Экран «Клан» в навигации теперь ведёт сюда. */
+let realClan = null;
+let realClanList = [];
+let realClanView = "list";
+let realWizard = { name:"", tag:"", iconIdx:0, openJoin:true };
+let realClanChatUnsub = null;
+
+function realClanTag(){
+  if (!realClan) return "";
+  return `${realClan.icon} <span class="clan-tag">[${realClan.tag}]</span> `;
+}
+
+async function refreshRealClan(){
+  try {
+    const r = await apiFetch("/api/clans/mine");
+    realClan = r.clan;
+  } catch (e) {
+    console.warn("refreshRealClan failed:", e);
+    realClan = null;
+  }
+}
+
+async function renderRealClan(){
+  const root = document.getElementById("clanRoot");
+  root.innerHTML = `<p class="dim center-pad">Загрузка…</p>`;
+  await refreshRealClan();
+  if (realClan){ renderRealClanDetail(root); return; }
+  if (realClanView === "create"){ renderRealClanWizard(root); return; }
+  await renderRealClanList(root);
+}
+
+async function renderRealClanList(root){
+  let list = [];
+  try { list = await apiFetch("/api/clans"); } catch (e) { console.warn(e); }
+  realClanList = list;
+  root.innerHTML = `
+    <div class="card no-clan-card">
+      <div class="nc-icon">🛡️</div>
+      <div><b>Вы не состоите в клане</b></div>
+      <p class="dim">Вступите в существующий клан или создайте свой — тег и эмблема сразу появятся рядом с вашим ником.</p>
+      <button class="btn primary full" id="createRealClanBtn">СОЗДАТЬ КЛАН (−${CLAN_CREATE_COST.toLocaleString("ru-RU")} Т)</button>
+    </div>
+    <div class="clan-list" id="realClanListBox"></div>
+  `;
+  const box = document.getElementById("realClanListBox");
+  if (!list.length){
+    box.innerHTML = `<p class="dim center-pad">Пока никто не создал клан. Будьте первыми!</p>`;
+  }
+  list.forEach(cl => {
+    const el = document.createElement("div");
+    el.className = "clan-row";
+    el.innerHTML = `
+      <div class="clan-emblem" style="background:${cl.color}">${cl.icon}</div>
+      <div class="clan-row-info">
+        <div class="clan-row-name"><span class="clan-tag">[${cl.tag}]</span> ${cl.name}</div>
+        <div class="clan-row-sub">${cl.member_count} участников · <span class="${cl.open_join?"clan-badge-open":"clan-badge-closed"}">${cl.open_join?"Открытый":"Закрыт"}</span></div>
+      </div>
+      <button class="btn ghost small joinRealClanBtn" data-id="${cl.id}" ${cl.open_join?"":"disabled"}>${cl.open_join?"Вступить":"Закрыт"}</button>
+    `;
+    box.appendChild(el);
+  });
+  document.getElementById("createRealClanBtn").addEventListener("click", () => {
+    if (state.player.level < CLAN_CREATE_MIN_LEVEL){ toast(`Создание клана доступно с уровня ${CLAN_CREATE_MIN_LEVEL}`); return; }
+    realWizard = { name:"", tag:"", iconIdx:0, openJoin:true };
+    realClanView = "create";
+    renderRealClan();
+  });
+  document.querySelectorAll(".joinRealClanBtn").forEach(b => {
+    b.addEventListener("click", async () => {
+      try {
+        await apiFetch(`/api/clans/${b.dataset.id}/join`, { method:"POST", body: JSON.stringify({}) });
+        toast("Вы вступили в клан!");
+        renderRealClan();
+      } catch (e) {
+        toast(e.data?.error === "already in a clan" ? "Вы уже состоите в клане" : "Не удалось вступить");
+      }
+    });
+  });
+}
+
+function renderRealClanWizard(root){
+  const w = realWizard;
+  root.innerHTML = `
+    <div class="card">
+      <div class="wizard-field">
+        <label>Название клана</label>
+        <input type="text" id="rwName" maxlength="24" placeholder="Например: Стальные Псы" value="${w.name}">
+      </div>
+      <div class="wizard-field" style="margin-top:10px;">
+        <label>Тег (3-5 символов)</label>
+        <input type="text" id="rwTag" maxlength="5" placeholder="Например: WOLF" value="${w.tag}" style="text-transform:uppercase">
+      </div>
+      <div class="wizard-field" style="margin-top:10px;"><label>Эмблема</label></div>
+      <div class="icon-grid" id="rwIconGrid"></div>
+      <div class="wizard-field" style="margin-top:10px;"><label>Тип вступления</label></div>
+      <div class="join-type-row">
+        <div class="join-type-opt ${w.openJoin?"selected":""}" data-jt="open"><b>Открытый</b><div class="dim">вступление мгновенно</div></div>
+        <div class="join-type-opt ${!w.openJoin?"selected":""}" data-jt="closed"><b>Закрытый</b><div class="dim">пока без заявок</div></div>
+      </div>
+      <div class="wizard-nav" style="margin-top:16px;">
+        <button class="btn ghost" id="rwCancel">Отмена</button>
+        <button class="btn primary" id="rwSubmit">СОЗДАТЬ</button>
+      </div>
+    </div>
+  `;
+  const grid = document.getElementById("rwIconGrid");
+  emblemPresets.forEach((p,i) => {
+    const sw = document.createElement("div");
+    sw.className = "icon-swatch" + (i===w.iconIdx?" selected":"");
+    sw.style.background = p.color;
+    sw.textContent = p.icon;
+    sw.addEventListener("click", () => { w.iconIdx = i; renderRealClanWizard(root); });
+    grid.appendChild(sw);
+  });
+  document.querySelectorAll(".join-type-opt").forEach(o => {
+    o.addEventListener("click", () => { w.openJoin = o.dataset.jt === "open"; renderRealClanWizard(root); });
+  });
+  document.getElementById("rwCancel").addEventListener("click", () => { realClanView = "list"; renderRealClan(); });
+  document.getElementById("rwSubmit").addEventListener("click", async () => {
+    const name = document.getElementById("rwName").value.trim();
+    const tag = document.getElementById("rwTag").value.trim().toUpperCase();
+    if (name.length < 3){ toast("Название должно быть не короче 3 символов"); return; }
+    if (tag.length < 3){ toast("Тег должен быть не короче 3 символов"); return; }
+    const preset = emblemPresets[w.iconIdx];
+    try {
+      await apiFetch("/api/clans", { method:"POST", body: JSON.stringify({ name, tag, icon: preset.icon, color: preset.color, openJoin: w.openJoin }) });
+      toast(`Клан «${name}» создан!`);
+      realClanView = "list";
+      renderHome();
+      renderRealClan();
+    } catch (e) {
+      if (e.data?.error === "insufficient funds") toast(`Недостаточно Т — нужно ${CLAN_CREATE_COST.toLocaleString("ru-RU")}`);
+      else if (e.data?.error === "already in a clan") toast("Вы уже состоите в клане");
+      else toast("Не удалось создать клан");
+    }
+  });
+}
+
+function renderRealClanDetail(root){
+  const c = realClan;
+  const isLeader = c.leader_id === window.myTelegramId;
+  root.innerHTML = `
+    <div class="card">
+      <div class="clan-detail-header">
+        <div class="clan-emblem" style="background:${c.color}">${c.icon}</div>
+        <div>
+          <div class="clan-row-name" style="font-size:16px;"><span class="clan-tag">[${c.tag}]</span> ${c.name}</div>
+          <div class="dim">${c.members.length} участников</div>
+        </div>
+      </div>
+    </div>
+    <button class="clanchat-btn" id="openRealClanChatBtn">💬 <b>Чат клана</b><span class="dim" style="margin-left:auto;">только для участников</span></button>
+    <div class="card">
+      <div class="card-title">Участники</div>
+      <div class="clan-list" id="realMemberList"></div>
+    </div>
+    <button class="btn ghost full" id="leaveRealClanBtn">${isLeader && c.members.length>1 ? "ПОКИНУТЬ (лидерство перейдёт другому)" : isLeader ? "РАСПУСТИТЬ КЛАН" : "ПОКИНУТЬ КЛАН"}</button>
+  `;
+  const box = document.getElementById("realMemberList");
+  c.members.forEach(m => {
+    const isMe = m.telegram_id === window.myTelegramId;
+    const el = document.createElement("div");
+    el.className = "member-row";
+    const roleLabel = m.role === "leader" ? "Лидер" : "Участник";
+    el.innerHTML = `
+      <span class="status-dot online"></span>
+      <div class="member-main">
+        <span>${isMe ? "(вы) " : ""}${m.name || "Игрок"}</span>
+      </div>
+      <span class="member-role ${m.role==="leader"?"leader":""}">${roleLabel}</span>
+    `;
+    box.appendChild(el);
+  });
+  document.getElementById("openRealClanChatBtn").addEventListener("click", () => openRealClanChat(c));
+  document.getElementById("leaveRealClanBtn").addEventListener("click", async () => {
+    try {
+      await apiFetch(`/api/clans/${c.id}/leave`, { method:"POST", body: JSON.stringify({}) });
+      toast("Вы покинули клан");
+      renderRealClan();
+      renderHome();
+    } catch (e) {
+      toast("Не удалось выполнить действие");
+    }
+  });
+}
+
+function openRealClanChat(clan){
+  screenStack.push("clanchat");
+  document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+  document.querySelector('.screen[data-screen="clanchat"]').classList.add("active");
+  document.getElementById("screenTitle").textContent = `Чат клана: ${clan.tag}`;
+  document.getElementById("backBtn").classList.remove("hidden");
+  document.getElementById("menuBtn").classList.add("hidden");
+  document.querySelectorAll(".nav-btn").forEach(b => b.classList.remove("active"));
+
+  document.getElementById("clanChatHeader").innerHTML = `
+    <div class="clanchat-header-card">
+      <div class="clan-emblem" style="background:${clan.color}">${clan.icon}</div>
+      <div><b>[${clan.tag}] ${clan.name}</b><div class="dim">${clan.members.length} участников</div></div>
+    </div>
+  `;
+  document.getElementById("clanChatMessages").innerHTML = `<p class="dim center-pad">Загрузка…</p>`;
+  window.joinChatRoom("clan:" + clan.id);
+  realClanChatUnsub = () => renderRealClanChatMessages();
+  window.setOnChatUpdate(realClanChatUnsub);
+  renderRealClanChatMessages();
+
+  const sendBtn = document.getElementById("clanChatSendBtn");
+  const input = document.getElementById("clanChatInput");
+  sendBtn.onclick = () => sendRealClanChat();
+  input.onkeydown = (e) => { if (e.key === "Enter") sendRealClanChat(); };
+}
+
+function renderRealClanChatMessages(){
+  const box = document.getElementById("clanChatMessages");
+  if (!box) return;
+  const messages = (window.chatState && window.chatState.messages) || [];
+  box.innerHTML = messages.length ? messages.map(m => `
+    <div class="chat-msg">
+      <div class="chat-avatar">🙂</div>
+      <div class="chat-body">
+        <div class="chat-head"><span class="chat-name">${m.telegramId === window.myTelegramId ? realClanTag() + state.player.name : m.name}</span><span class="chat-time">${m.time}</span></div>
+        <div class="chat-text">${m.text}</div>
+      </div>
+    </div>`).join("") : `<p class="dim center-pad">Пока никто не писал. Будьте первым!</p>`;
+  box.scrollTop = box.scrollHeight;
+}
+
+function sendRealClanChat(){
+  const input = document.getElementById("clanChatInput");
+  const text = input.value.trim();
+  if (!text) return;
+  window.sendChatMessage(text);
+  input.value = "";
 }
 
 /* ===== Arena ===== */
@@ -1779,7 +2019,7 @@ function showScreen(name, opts={}){
   if (name === "craft") renderCraft();
   if (name === "shop") renderShop("weapon");
   if (name === "chat") renderChat();
-  if (name === "clan") renderClan();
+  if (name === "clan") renderRealClan();
   if (name === "arena") renderArena();
   if (name === "auction") renderAuction();
   if (name === "territorywar") renderWar();
@@ -3970,51 +4210,50 @@ function buyGoldTierRecipe(r){
   toast(`Рецепт изучен: ${r.name}`);
 }
 
-/* ===== Render: Chat ===== */
-let chatMessages = [...chatSeed];
+/* ===== Render: Chat (реальные сообщения и присутствие через сокет, см. persistence.js) ===== */
+let chatTabActive = "chat";
 document.querySelectorAll('.tabs[data-group="chatTab"] .tab').forEach(t => {
-  t.addEventListener("click", () => switchTab("chatTab", t.dataset.tab));
+  t.addEventListener("click", () => { chatTabActive = t.dataset.tab; switchTab("chatTab", t.dataset.tab); });
 });
 function renderChatTab(tab){
+  chatTabActive = tab;
   const box = document.getElementById("chatMessages");
-  const onlineCount = districtOnlineUsers.filter(u => u.online).length;
-  document.getElementById("onlineTabBtn").textContent = `Онлайн (${onlineCount})`;
+  const presence = (window.chatState && window.chatState.presence) || [];
+  document.getElementById("onlineTabBtn").textContent = `Онлайн (${presence.length})`;
   if (tab === "online"){
-    const sorted = [...districtOnlineUsers].sort((a,b) => (b.online?1:0) - (a.online?1:0));
-    box.innerHTML = sorted.map(u => `
+    box.innerHTML = presence.length ? presence.map(u => `
       <div class="online-row">
-        <span class="status-dot ${u.online?"online":"offline"}"></span>
+        <span class="status-dot online"></span>
         <div class="member-main">
-          <span>${u.admin?"🛡️ ":""}${u.name}</span>
-          <span class="member-sub">${u.online?"в сети":"был(а) "+(u.lastSeen||"недавно")}</span>
+          <span>${u.telegramId === window.myTelegramId ? "(вы) " : ""}${u.name}</span>
+          <span class="member-sub">в сети</span>
         </div>
-      </div>`).join("");
+      </div>`).join("") : `<p class="dim center-pad">Здесь пока никого.</p>`;
   } else {
     renderChat();
   }
 }
 function renderChat(){
   const box = document.getElementById("chatMessages");
-  const onlineCount = districtOnlineUsers.filter(u => u.online).length;
-  document.getElementById("onlineTabBtn").textContent = `Онлайн (${onlineCount})`;
-  box.innerHTML = chatMessages.map(m => `
+  const messages = (window.chatState && window.chatState.messages) || [];
+  const presence = (window.chatState && window.chatState.presence) || [];
+  document.getElementById("onlineTabBtn").textContent = `Онлайн (${presence.length})`;
+  box.innerHTML = messages.length ? messages.map(m => `
     <div class="chat-msg">
-      <div class="chat-avatar">${m.admin?"🛡️":"🙂"}</div>
+      <div class="chat-avatar">🙂</div>
       <div class="chat-body">
-        <div class="chat-head"><span class="chat-name ${m.admin?"admin":""}">${m.isMe ? renderName() : m.name}</span><span class="chat-time">${m.time}</span></div>
+        <div class="chat-head"><span class="chat-name">${m.telegramId === window.myTelegramId ? renderName() : m.name}</span><span class="chat-time">${m.time}</span></div>
         <div class="chat-text">${m.text}</div>
       </div>
-    </div>`).join("");
+    </div>`).join("") : `<p class="dim center-pad">Пока тихо — напишите первым.</p>`;
   box.scrollTop = box.scrollHeight;
 }
 function sendChat(){
   const input = document.getElementById("chatInput");
   const text = input.value.trim();
   if (!text) return;
-  const now = new Date();
-  chatMessages.push({ name: state.player.name, isMe:true, time: `${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}`, text });
+  sendChatMessage(text);
   input.value = "";
-  renderChat();
 }
 document.getElementById("chatSendBtn").addEventListener("click", sendChat);
 document.getElementById("chatInput").addEventListener("keydown", e => { if (e.key === "Enter") sendChat(); });
