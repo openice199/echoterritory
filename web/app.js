@@ -826,7 +826,7 @@ function listItemForSale(item, price){
   }
   const refValue = estimateItemValue(item);
   const willSell = Math.random() < auctionSellChance(price, refValue);
-  state.market.myListings.push({ listingId:"my"+Date.now()+Math.random(), item:{ ...item, count:1 }, price, secondsLeft: AUCTION_SELL_SECONDS, willSell });
+  state.market.myListings.push({ listingId:"my"+Date.now()+Math.random(), item:{ ...item, count:1 }, price, listedAt: Date.now(), secondsLeft: AUCTION_SELL_SECONDS, willSell });
   auctionSellItemId = null;
   toast(`Выставлено: ${item.name} за ${price.toLocaleString("ru-RU")} Т`);
   renderAuctionMine();
@@ -848,7 +848,12 @@ function startAuctionTimer(){
   if (auctionTimerHandle) return;
   auctionTimerHandle = setInterval(() => {
     if (!state.market.myListings.length){ clearInterval(auctionTimerHandle); auctionTimerHandle = null; return; }
-    state.market.myListings.forEach(l => l.secondsLeft--);
+    // Считаем остаток от реального времени размещения лота (listedAt), а не декрементом —
+    // иначе, как и с другими таймерами в игре, отсчёт просто замирает, пока приложение
+    // закрыто, и лот "продаётся" куда дольше заявленных 90 секунд.
+    state.market.myListings.forEach(l => {
+      l.secondsLeft = Math.max(0, AUCTION_SELL_SECONDS - Math.floor((Date.now() - (l.listedAt || Date.now())) / 1000));
+    });
     const finished = state.market.myListings.filter(l => l.secondsLeft <= 0);
     state.market.myListings = state.market.myListings.filter(l => l.secondsLeft > 0);
     finished.forEach(l => {
