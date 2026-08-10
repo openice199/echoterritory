@@ -2732,6 +2732,7 @@ function renderPovarDetail(root, prof){
 function renderFishingView(){
   const p = state.player;
   const body = document.getElementById("povarBody");
+  if (!body) return;
   const hasRod = p.rodDurability !== null && p.rodDurability > 0;
   const atPier = currentDistrictId === "pristan";
   body.innerHTML = `
@@ -2806,6 +2807,7 @@ function finishFishing(){
 function renderCookingView(){
   const p = state.player;
   const body = document.getElementById("povarBody");
+  if (!body) return;
   const known = cookRecipes.filter(r => p.knownRecipes.includes(r.id));
   body.innerHTML = cookingActive ? `
     <div class="card">
@@ -2902,6 +2904,7 @@ function renderTravnikDetail(root, prof){
 function renderGatherView(){
   const p = state.player;
   const body = document.getElementById("travnikBody");
+  if (!body) return;
   const hasSecator = p.secatorDurability !== null && p.secatorDurability > 0;
   const atField = currentDistrictId === "pustyr";
   const disabled = !hasSecator || gatherActive || !atField || isBusy();
@@ -2960,6 +2963,7 @@ function finishGather(){
 function renderBrewView(){
   const p = state.player;
   const body = document.getElementById("travnikBody");
+  if (!body) return;
   const known = elixirRecipes.filter(r => p.knownRecipes.includes(r.id));
   body.innerHTML = brewActive ? `
     <div class="card">
@@ -3055,6 +3059,7 @@ function renderFarmacevtDetail(root, prof){
 function renderSeaweedGatherView(){
   const p = state.player;
   const body = document.getElementById("farmacevtBody");
+  if (!body) return;
   const hasGloves = p.glovesDurability !== null && p.glovesDurability > 0;
   const atShore = currentDistrictId === "bereg";
   const disabled = !hasGloves || seaweedActive || !atShore || isBusy();
@@ -3113,6 +3118,7 @@ function finishGatherSeaweed(){
 function renderPotionBrewView(){
   const p = state.player;
   const body = document.getElementById("farmacevtBody");
+  if (!body) return;
   const known = potionRecipes.filter(r => p.knownRecipes.includes(r.id));
   body.innerHTML = potionBrewActive ? `
     <div class="card">
@@ -3208,6 +3214,7 @@ function renderOruzejnikDetail(root, prof){
 function renderScrapGatherView(){
   const p = state.player;
   const body = document.getElementById("oruzejnikBody");
+  if (!body) return;
   const hasCutter = p.cutterDurability !== null && p.cutterDurability > 0;
   const atSvalka = currentDistrictId === "svalka";
   const disabled = !hasCutter || scrapActive || !atSvalka || isBusy();
@@ -3270,6 +3277,7 @@ function finishGatherScrap(){
 function renderForgeView(){
   const p = state.player;
   const body = document.getElementById("oruzejnikBody");
+  if (!body) return;
   const known = smithRecipes.filter(r => p.knownRecipes.includes(r.id));
   body.innerHTML = forgeActive ? `
     <div class="card">
@@ -3365,6 +3373,7 @@ function renderJuvelirDetail(root, prof){
 function renderGemGatherView(){
   const p = state.player;
   const body = document.getElementById("juvelirBody");
+  if (!body) return;
   const hasSaw = p.sawDurability !== null && p.sawDurability > 0;
   const atPriisk = currentDistrictId === "priisk";
   const disabled = !hasSaw || gemActive || !atPriisk || isBusy();
@@ -3429,6 +3438,7 @@ function finishGatherGem(){
 function renderSetView(){
   const p = state.player;
   const body = document.getElementById("juvelirBody");
+  if (!body) return;
   const known = jewelryRecipes.filter(r => p.knownRecipes.includes(r.id));
   body.innerHTML = setActive ? `
     <div class="card">
@@ -3526,6 +3536,7 @@ function renderPortnoyDetail(root, prof){
 function renderFabricGatherView(){
   const p = state.player;
   const body = document.getElementById("portnoyBody");
+  if (!body) return;
   const hasShears = p.shearsDurability !== null && p.shearsDurability > 0;
   const atSklad = currentDistrictId === "sklad";
   const disabled = !hasShears || fabricActive || !atSklad || isBusy();
@@ -3588,6 +3599,7 @@ function finishGatherFabric(){
 function renderSewView(){
   const p = state.player;
   const body = document.getElementById("portnoyBody");
+  if (!body) return;
   const known = goldTierRecipes.filter(r => p.knownRecipes.includes(r.id));
   body.innerHTML = sewActive ? `
     <div class="card">
