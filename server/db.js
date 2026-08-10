@@ -38,4 +38,17 @@ async function savePlayer(telegramId, telegramName, state) {
   return now;
 }
 
-module.exports = { loadPlayer, savePlayer };
+async function listPlayers() {
+  await ready;
+  const res = await pool.query(
+    "SELECT telegram_id, telegram_name, updated_at, state_json->'player'->>'name' as player_name, state_json->'player'->>'level' as level FROM players ORDER BY updated_at DESC LIMIT 50"
+  );
+  return res.rows;
+}
+
+async function deletePlayer(telegramId) {
+  await ready;
+  await pool.query("DELETE FROM players WHERE telegram_id = $1", [telegramId]);
+}
+
+module.exports = { loadPlayer, savePlayer, listPlayers, deletePlayer };

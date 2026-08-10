@@ -2,10 +2,11 @@ require("dotenv").config({ quiet: true });
 const path = require("path");
 const express = require("express");
 const { validateInitData } = require("./telegramAuth");
-const { loadPlayer, savePlayer } = require("./db");
+const { loadPlayer, savePlayer, listPlayers, deletePlayer } = require("./db");
 
 const PORT = process.env.PORT || 8430;
 const BOT_TOKEN = process.env.BOT_TOKEN || "";
+const ADMIN_KEY = process.env.ADMIN_KEY || "";
 // Пока нет реального бота — разрешаем локальную авторизацию через заголовок x-dev-user-id.
 // Как только BOT_TOKEN появится, ставь ALLOW_DEV_AUTH=0 в проде, чтобы это не осталось лазейкой.
 const ALLOW_DEV_AUTH = process.env.ALLOW_DEV_AUTH !== "0";
@@ -58,6 +59,20 @@ app.post("/api/save", authenticate, async (req, res) => {
 });
 
 app.get("/api/health", (req, res) => res.json({ ok: true, devAuth: ALLOW_DEV_AUTH }));
+
+function requireAdmin(req, res, next) {
+  if (!ADMIN_KEY || req.query.key !== ADMIN_KEY) return res.status(403).json({ error: "forbidden" });
+  next();
+}
+app.get("/api/admin/players", requireAdmin, async (req, res) => {
+  res.json(await listPlayers());
+});
+app.post("/api/admin/reset", requireAdmin, async (req, res) => {
+  const { telegramId } = req.body || {};
+  if (!telegramId) return res.status(400).json({ error: "telegramId required" });
+  await deletePlayer(telegramId);
+  res.json({ ok: true });
+});
 
 // Отдаём статику игры тем же сервером — один процесс, один деплой.
 app.use(express.static(path.join(__dirname, "..", "web")));
