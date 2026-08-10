@@ -4593,4 +4593,3 @@ setInterval(tickHpRegen, HP_REGEN_TICK_SECONDS * 1000);
 /* ===== Init ===== */
 requestNotifyPermission();
 renderHome();
-refreshRealClan().then(() => updateClanTaxBanner());
