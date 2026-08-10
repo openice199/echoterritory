@@ -219,6 +219,85 @@ function updateBusyBanner(){
   }
 }
 
+/* ===== Ежедневные задания ===== */
+const DAILY_QUEST_DEFS = [
+  { id:"login", icon:"📅", name:"Зайти в игру", target:1, reward:50 },
+  { id:"battle", icon:"⚔️", name:"Победить в 3 боях", target:3, reward:150 },
+  { id:"gather", icon:"🧺", name:"Завершить сбор или крафт", target:1, reward:80 },
+  { id:"arenaWin", icon:"🏟️", name:"Победить на арене", target:1, reward:200 },
+  { id:"travel", icon:"📍", name:"Переместиться в район", target:1, reward:30 },
+];
+
+function todayKey(){
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+}
+
+function ensureDailyQuests(){
+  const p = state.player;
+  const today = todayKey();
+  if (!p.dailyQuests || p.dailyQuests.date !== today){
+    p.dailyQuests = { date: today, progress: {}, claimed: {} };
+    DAILY_QUEST_DEFS.forEach(q => { p.dailyQuests.progress[q.id] = 0; p.dailyQuests.claimed[q.id] = false; });
+  }
+}
+
+function bumpQuestProgress(id, amount){
+  ensureDailyQuests();
+  const q = DAILY_QUEST_DEFS.find(x => x.id === id);
+  if (!q) return;
+  const dq = state.player.dailyQuests;
+  if (dq.claimed[id]) return;
+  dq.progress[id] = Math.min(q.target, (dq.progress[id]||0) + (amount||1));
+  const screen = document.querySelector('.screen[data-screen="quests"]');
+  if (screen && screen.classList.contains("active")) renderQuests();
+}
+
+function claimQuest(id){
+  ensureDailyQuests();
+  const q = DAILY_QUEST_DEFS.find(x => x.id === id);
+  if (!q) return;
+  const dq = state.player.dailyQuests;
+  if (dq.claimed[id] || (dq.progress[id]||0) < q.target) return;
+  dq.claimed[id] = true;
+  state.player.rub += q.reward;
+  toast(`Получено: +${q.reward.toLocaleString("ru-RU")} Т за «${q.name}»`);
+  renderQuests();
+  renderHome();
+}
+
+function renderQuests(){
+  ensureDailyQuests();
+  const root = document.getElementById("questsRoot");
+  if (!root) return;
+  const dq = state.player.dailyQuests;
+  root.innerHTML = `
+    <div class="card">
+      <div class="card-title">Задания на сегодня</div>
+      <div class="dim">Обновляются каждый день — не забудьте забрать награду, пока не сбросились.</div>
+    </div>
+    <div class="clan-list" id="questsList"></div>
+  `;
+  const list = document.getElementById("questsList");
+  DAILY_QUEST_DEFS.forEach(q => {
+    const progress = Math.min(dq.progress[q.id] || 0, q.target);
+    const done = progress >= q.target;
+    const claimed = dq.claimed[q.id];
+    const el = document.createElement("div");
+    el.className = "npc-row";
+    el.innerHTML = `
+      <div class="npc-avatar">${q.icon}</div>
+      <div class="npc-main">
+        <div class="npc-name">${q.name}</div>
+        <div class="npc-sub">${progress}/${q.target} · Награда: ${q.reward.toLocaleString("ru-RU")} Т</div>
+      </div>
+      <button class="btn ${done && !claimed?"primary":"ghost"} small" ${claimed||!done?"disabled":""}>${claimed?"Получено":"Забрать"}</button>
+    `;
+    if (done && !claimed) el.querySelector("button").addEventListener("click", () => claimQuest(q.id));
+    list.appendChild(el);
+  });
+}
+
 // Отмечаем длительную активность (рыбалка, готовка, сбор и т.п.) в сохраняемом
 // состоянии — чтобы прогресс переживал закрытие приложения: при следующем заходе
 // resolveActiveJobOnLoad() либо мгновенно завершит её (если время вышло), либо
@@ -228,6 +307,7 @@ function beginActiveJob(kind, targetId, durationSec){
 }
 function endActiveJob(){
   state.player.activeJob = null;
+  bumpQuestProgress("gather", 1);
 }
 
 /* ===== Уведомления браузера (замена push от Telegram-бота в проде) ===== */
@@ -1739,6 +1819,7 @@ async function challengeOpponent(opponent){
   document.getElementById("battle-p-hp-text").textContent = `${state.player.hp} / ${state.player.maxHp}`;
   document.getElementById("battle-p-hp-bar").style.width = `${Math.max(0,(state.player.hp/state.player.maxHp)*100)}%`;
 
+  if (result.won) bumpQuestProgress("arenaWin", 1);
   const resultBox = document.getElementById("battleResult");
   resultBox.classList.remove("hidden");
   const chips = result.won
@@ -2027,7 +2108,7 @@ function computeDamage(attackerStats, weaponAvg, zone, blockZone, defenderArmor)
 /* ===== Navigation ===== */
 const screenTitles = {
   home:"Territory", map:"Карта города", battle:"Бой", character:"Персонаж",
-  inventory:"Инвентарь", craft:"Профессии", work:"Работа", shop:"Магазин", chat:"Чат района", clan:"Клан", arena:"Арена", territorywar:"Война за территорию", auction:"Аукцион", stub:"Скоро"
+  inventory:"Инвентарь", craft:"Профессии", work:"Работа", shop:"Магазин", chat:"Чат района", clan:"Клан", arena:"Арена", territorywar:"Война за территорию", auction:"Аукцион", quests:"Задания", stub:"Скоро"
 };
 let screenStack = ["home"];
 
@@ -2059,6 +2140,7 @@ function showScreen(name, opts={}){
   if (name === "territorywar") renderWar();
   if (name === "work") enterWorkScreen();
   if (name === "battle") ensureBattleStarted();
+  if (name === "quests") renderQuests();
 }
 
 document.getElementById("backBtn").addEventListener("click", () => {
@@ -2234,6 +2316,7 @@ document.getElementById("travelBtn").addEventListener("click", (e) => {
       clearInterval(travelHandle);
       currentDistrictId = target;
       state.player.district = d.name;
+      bumpQuestProgress("travel", 1);
       renderHome();
       renderMap();
       toast(`Вы переместились: «${d.name}»`);
@@ -4604,6 +4687,7 @@ function endBattle(won){
   }
 
   if (won){
+    bumpQuestProgress("battle", 1);
     const mult = moneyRewardMultiplier(state.player.level, enemy.level);
     const rubGain = Math.round(enemy.rubReward * mult);
     logLine(`${enemy.name} повержен! Получено: ${enemy.expReward} EXP, ${rubGain} Т${mult<1?" (цель ниже вашего уровня, награда снижена)":""}`, "crit");

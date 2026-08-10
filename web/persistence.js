@@ -146,7 +146,7 @@
       },
       arenaPoints: 0, arenaRep: 0, arenaWins: 0, arenaLosses: 0,
       territoryTokens: 0, territoryRep: 0, territoryClaimedToday: false,
-      activeJob: null,
+      activeJob: null, dailyQuests: null,
       healSlotUnlocked: false,
       combatSlots: ["medkit", "bandage", null, null],
       energy: 100, maxEnergy: 100,
@@ -224,6 +224,7 @@
       toast(`Добро пожаловать в Химер-Сити, ${displayName}!`);
       saveNow(); // первый заход — сразу создаём запись
     }
+    if (typeof bumpQuestProgress === "function") bumpQuestProgress("login", 1);
     renderHome();
     if (typeof refreshRealClan === "function"){
       refreshRealClan().then(renderHome);

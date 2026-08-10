@@ -349,6 +349,11 @@
       <div id="playerProfileRoot"></div>
     </section>
 
+    <!-- ЗАДАНИЯ -->
+    <section class="screen" data-screen="quests">
+      <div id="questsRoot"></div>
+    </section>
+
     <!-- ЗАГЛУШКА -->
     <section class="screen" data-screen="stub">
       <p class="dim center-pad" id="stubText">Раздел появится в следующей версии.</p>
@@ -358,7 +363,7 @@
 
   <nav class="bottomnav">
     <button class="nav-btn active" data-goto="home"><span>🏠</span>Главная</button>
-    <button class="nav-btn" data-goto="stub" data-title="Задания">📋<span></span>Задания</button>
+    <button class="nav-btn" data-goto="quests">📋<span></span>Задания</button>
     <button class="nav-btn" data-goto="stub" data-title="Друзья">👥<span></span>Друзья</button>
     <button class="nav-btn" data-goto="clan">🛡️<span></span>Клан</button>
     <button class="nav-btn" data-goto="character">👤Профиль</button>
@@ -370,7 +375,7 @@
 
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <script src="/socket.io/socket.io.js"></script>
-<script src="app.js?v=33"></script>
-<script src="persistence.js?v=5"></script>
+<script src="app.js?v=34"></script>
+<script src="persistence.js?v=6"></script>
 </body>
 </html>
