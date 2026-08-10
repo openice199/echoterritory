@@ -181,6 +181,16 @@
         || (typeof professionSpots !== "undefined" && professionSpots.find(x => x.name === state.player.district));
       if (loc) currentDistrictId = loc.id;
     }
+    // Пассивная регенерация HP в app.js — тоже просто setInterval(..., 8000), который
+    // не тикает, пока приложение закрыто. Досчитываем, сколько тиков "прошло" за реальное
+    // время с последнего сохранения (saved.updatedAt), и применяем их разом.
+    if (saved.updatedAt && typeof hpRegenAmount === "function" && typeof HP_REGEN_TICK_SECONDS !== "undefined"){
+      const elapsedMs = Date.now() - Number(saved.updatedAt);
+      const ticks = Math.floor(elapsedMs / (HP_REGEN_TICK_SECONDS * 1000));
+      if (ticks > 0 && state.player.hp < state.player.maxHp){
+        state.player.hp = Math.min(state.player.maxHp, state.player.hp + ticks * hpRegenAmount());
+      }
+    }
     return true;
   }
 
