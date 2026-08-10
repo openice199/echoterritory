@@ -6,8 +6,13 @@ const { validateInitData } = require("./telegramAuth");
 const {
   loadPlayer, savePlayer, listPlayers, deletePlayer,
   listClans, getClan, getClanForPlayer, createClan, joinClan, leaveClan, tryDeductRub,
+  listArenaOpponents, applyArenaOutcome, getShieldUntil,
+  listTerritories, getTerritoryOwner, getActiveWarForDistrict, getActiveWarForClan,
+  getWar, createWar, joinWarRoster, collectClanTax,
 } = require("./db");
 const { setupRealtime } = require("./realtime");
+const { fighterFromState, simulateDuel } = require("./combat");
+const { DISTRICT_TAX, WAR_PREP_MS, WAR_DECLARE_COST, startWarSweep } = require("./territory");
 
 const PORT = process.env.PORT || 8430;
 const BOT_TOKEN = process.env.BOT_TOKEN || "";
@@ -143,6 +148,135 @@ app.post("/api/clans/:id/leave", authenticate, async (req, res) => {
   }
 });
 
+/* ===== Арена: асинхронный PvP против реальных сохранённых персонажей =====
+   Бой разрешается мгновенно на сервере тем же симулятором, что и войны за
+   территорию — обе стороны не обязаны быть в сети одновременно. */
+app.get("/api/arena/opponents", authenticate, async (req, res) => {
+  try {
+    const list = await listArenaOpponents(req.telegramId, 30);
+    const now = Date.now();
+    res.json(list.map((o) => ({
+      telegramId: o.telegram_id,
+      name: o.name || o.telegram_name || "Игрок",
+      level: o.level ? Number(o.level) : 1,
+      arenaRep: o.arena_rep ? Number(o.arena_rep) : 0,
+      shielded: o.shield_until ? Number(o.shield_until) > now : false,
+    })));
+  } catch (e) {
+    console.error("arena opponents failed:", e);
+    res.status(500).json({ error: "failed" });
+  }
+});
+
+app.post("/api/arena/challenge", authenticate, async (req, res) => {
+  const { opponentTelegramId } = req.body || {};
+  if (!opponentTelegramId) return res.status(400).json({ error: "opponentTelegramId required" });
+  if (opponentTelegramId === req.telegramId) return res.status(400).json({ error: "cannot challenge yourself" });
+  try {
+    const shieldUntil = await getShieldUntil(opponentTelegramId);
+    if (shieldUntil && shieldUntil > Date.now()) return res.status(403).json({ error: "shielded" });
+    const challengerSaved = await loadPlayer(req.telegramId);
+    const opponentSaved = await loadPlayer(opponentTelegramId);
+    if (!challengerSaved || !opponentSaved) return res.status(404).json({ error: "player not found" });
+    const duel = simulateDuel(fighterFromState(challengerSaved.state), fighterFromState(opponentSaved.state));
+    await applyArenaOutcome(req.telegramId, opponentTelegramId, duel.aWins);
+    res.json({ ok: true, won: duel.aWins, rounds: duel.rounds, opponentName: opponentSaved.state.player.name });
+  } catch (e) {
+    console.error("arena challenge failed:", e);
+    res.status(500).json({ error: "failed" });
+  }
+});
+
+/* ===== Территории и войны за улицы (реальные кланы) ===== */
+app.get("/api/territory", authenticate, async (req, res) => {
+  try {
+    const rows = await listTerritories();
+    const map = {};
+    rows.forEach((r) => { if (r.clan_id) map[r.district_id] = { clanId: r.clan_id, name: r.clan_name, tag: r.clan_tag, icon: r.clan_icon, color: r.clan_color }; });
+    res.json({ owners: map, taxTable: DISTRICT_TAX });
+  } catch (e) {
+    console.error("list territory failed:", e);
+    res.status(500).json({ error: "failed" });
+  }
+});
+
+app.get("/api/territory/:districtId/war", authenticate, async (req, res) => {
+  try {
+    const war = await getActiveWarForDistrict(req.params.districtId);
+    res.json({ war });
+  } catch (e) {
+    console.error("get district war failed:", e);
+    res.status(500).json({ error: "failed" });
+  }
+});
+
+app.get("/api/territory/wars/:warId", authenticate, async (req, res) => {
+  try {
+    const war = await getWar(req.params.warId);
+    if (!war) return res.status(404).json({ error: "not found" });
+    res.json({ war });
+  } catch (e) {
+    console.error("get war failed:", e);
+    res.status(500).json({ error: "failed" });
+  }
+});
+
+app.post("/api/territory/:districtId/declare", authenticate, async (req, res) => {
+  try {
+    const myClan = await getClanForPlayer(req.telegramId);
+    if (!myClan) return res.status(403).json({ error: "not in a clan" });
+    const existingDistrictWar = await getActiveWarForDistrict(req.params.districtId);
+    if (existingDistrictWar) return res.status(409).json({ error: "war already active here" });
+    const myActiveWar = await getActiveWarForClan(myClan.id);
+    if (myActiveWar) return res.status(409).json({ error: "your clan is already at war" });
+    const ownerClanId = await getTerritoryOwner(req.params.districtId);
+    if (ownerClanId === myClan.id) return res.status(400).json({ error: "you already own this" });
+    const paid = await tryDeductRub(req.telegramId, WAR_DECLARE_COST);
+    if (!paid) return res.status(402).json({ error: "insufficient funds", cost: WAR_DECLARE_COST });
+    const id = "w_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    const war = await createWar({
+      id, districtId: req.params.districtId, attackerClanId: myClan.id,
+      defenderClanId: ownerClanId, prepEndsAt: Date.now() + WAR_PREP_MS,
+    });
+    res.json({ ok: true, war });
+  } catch (e) {
+    console.error("declare war failed:", e);
+    res.status(500).json({ error: "failed" });
+  }
+});
+
+app.post("/api/territory/wars/:warId/join", authenticate, async (req, res) => {
+  const { side } = req.body || {};
+  if (side !== "attacker" && side !== "defender") return res.status(400).json({ error: "side must be attacker or defender" });
+  try {
+    const war = await getWar(req.params.warId);
+    if (!war) return res.status(404).json({ error: "not found" });
+    if (war.status !== "preparing") return res.status(409).json({ error: "war not open for joining" });
+    const myClan = await getClanForPlayer(req.telegramId);
+    if (!myClan) return res.status(403).json({ error: "not in a clan" });
+    const expectedClanId = side === "attacker" ? war.attacker_clan_id : war.defender_clan_id;
+    if (myClan.id !== expectedClanId) return res.status(403).json({ error: "wrong clan for this side" });
+    const roster = await joinWarRoster(req.params.warId, side, req.telegramId, req.telegramName || myClan.tag);
+    res.json({ ok: true, roster });
+  } catch (e) {
+    console.error("join war roster failed:", e);
+    res.status(500).json({ error: "failed" });
+  }
+});
+
+app.post("/api/clans/mine/collect-tax", authenticate, async (req, res) => {
+  try {
+    const myClan = await getClanForPlayer(req.telegramId);
+    if (!myClan) return res.status(403).json({ error: "not in a clan" });
+    const result = await collectClanTax(myClan.id, DISTRICT_TAX);
+    if (!result) return res.status(404).json({ error: "not found" });
+    res.json(result);
+  } catch (e) {
+    console.error("collect tax failed:", e);
+    res.status(500).json({ error: "failed" });
+  }
+});
+
 function requireAdmin(req, res, next) {
   if (!ADMIN_KEY || req.query.key !== ADMIN_KEY) return res.status(403).json({ error: "forbidden" });
   next();
@@ -161,7 +295,8 @@ app.post("/api/admin/reset", requireAdmin, async (req, res) => {
 app.use(express.static(path.join(__dirname, "..", "web")));
 
 const httpServer = http.createServer(app);
-setupRealtime(httpServer, { botToken: BOT_TOKEN, allowDevAuth: ALLOW_DEV_AUTH });
+const io = setupRealtime(httpServer, { botToken: BOT_TOKEN, allowDevAuth: ALLOW_DEV_AUTH });
+startWarSweep(io);
 
 httpServer.listen(PORT, () => {
   console.log(`Territory 2026 server on http://localhost:${PORT} (dev auth: ${ALLOW_DEV_AUTH})`);

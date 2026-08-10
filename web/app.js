@@ -1437,6 +1437,14 @@ function renderRealClanWizard(root){
 function renderRealClanDetail(root){
   const c = realClan;
   const isLeader = c.leader_id === window.myTelegramId;
+  const territories = c.territories || [];
+  const dailyTax = territories.reduce((sum, t) => {
+    const d = districts.find(x => x.id === t.district_id);
+    return sum + (d ? d.taxValue : 0);
+  }, 0);
+  const cooldownMs = 20 * 60 * 60 * 1000;
+  const msLeft = c.tax_claimed_at ? cooldownMs - (Date.now() - Number(c.tax_claimed_at)) : 0;
+  const canClaim = msLeft <= 0;
   root.innerHTML = `
     <div class="card">
       <div class="clan-detail-header">
@@ -1447,6 +1455,15 @@ function renderRealClanDetail(root){
         </div>
       </div>
     </div>
+    <div class="card">
+      <div class="card-title">Территория и казна</div>
+      <div class="dim" style="margin-bottom:8px;">Казна: <b style="color:var(--gold);">${Number(c.treasury||0).toLocaleString("ru-RU")} Т</b></div>
+      ${territories.length ? territories.map(t => {
+        const d = districts.find(x => x.id === t.district_id);
+        return `<div class="street-row" style="display:flex;justify-content:space-between;padding:6px 0;font-size:12.5px;"><span>${d?d.name:t.district_id}</span><span style="color:var(--gold);">+${(d?d.taxValue:0).toLocaleString("ru-RU")} Т/сутки</span></div>`;
+      }).join("") : `<p class="dim" style="font-size:12px;">Клан пока не держит районов — объявите войну на карте.</p>`}
+      ${territories.length ? `<button class="btn primary full" id="collectTaxBtn" style="margin-top:8px;" ${canClaim?"":"disabled"}>${canClaim ? `СОБРАТЬ НАЛОГ (+${dailyTax.toLocaleString("ru-RU")} Т)` : `Налог собран, ждите ~${Math.ceil(msLeft/3600000)} ч`}</button>` : ""}
+    </div>
     <button class="clanchat-btn" id="openRealClanChatBtn">💬 <b>Чат клана</b><span class="dim" style="margin-left:auto;">только для участников</span></button>
     <div class="card">
       <div class="card-title">Участники</div>
@@ -1454,6 +1471,17 @@ function renderRealClanDetail(root){
     </div>
     <button class="btn ghost full" id="leaveRealClanBtn">${isLeader && c.members.length>1 ? "ПОКИНУТЬ (лидерство перейдёт другому)" : isLeader ? "РАСПУСТИТЬ КЛАН" : "ПОКИНУТЬ КЛАН"}</button>
   `;
+  const collectBtn = document.getElementById("collectTaxBtn");
+  if (collectBtn) collectBtn.addEventListener("click", async () => {
+    try {
+      const r = await apiFetch("/api/clans/mine/collect-tax", { method:"POST", body: JSON.stringify({}) });
+      if (r.alreadyClaimed){ toast("Налог уже собран сегодня"); return; }
+      toast(`Собрано ${Number(r.amount).toLocaleString("ru-RU")} Т в казну клана`);
+      renderRealClan();
+    } catch (e) {
+      toast("Не удалось собрать налог");
+    }
+  });
   const box = document.getElementById("realMemberList");
   c.members.forEach(m => {
     const isMe = m.telegram_id === window.myTelegramId;
@@ -1546,22 +1574,7 @@ function nameSeed(name){
   for (let i=0;i<name.length;i++) h = (h*31 + name.charCodeAt(i)) % 97;
   return h;
 }
-function buildArenaOpponents(){
-  const list = [];
-  clans.forEach(c => {
-    c.members.forEach(m => {
-      if (m.name === state.player.name) return;
-      const rep = 10 + m.level*9 + nameSeed(m.name);
-      list.push({ ...m, clanTag:c.tag, clanIcon:c.icon, shieldUntil: m.shieldUntil || null, rep });
-    });
-  });
-  return list;
-}
-let arenaOpponentsCache = null;
-function arenaOpponents(){
-  if (!arenaOpponentsCache) arenaOpponentsCache = buildArenaOpponents();
-  return arenaOpponentsCache;
-}
+// Реальные соперники арены — с сервера (см. /api/arena/opponents), не выдуманные боты.
 
 const ARENA_RANKS = [
   { rep:0, name:"Новичок" },
@@ -1612,11 +1625,14 @@ function renderArena(){
   else renderArenaShop();
 }
 
-function renderArenaRating(){
+async function renderArenaRating(){
   const body = document.getElementById("arenaBody");
+  body.innerHTML = `<p class="dim center-pad">Загрузка…</p>`;
   const p = state.player;
-  const rows = arenaOpponents().map(o => ({ name:o.name, clanTag:o.clanTag, clanIcon:o.clanIcon, level:o.level, rep:o.rep, isMe:false }));
-  rows.push({ name:p.name, clanTag: myClan()?.tag, clanIcon: myClan()?.icon || "🙂", level:p.level, rep:p.arenaRep, isMe:true });
+  let opponents = [];
+  try { opponents = await apiFetch("/api/arena/opponents"); } catch (e) { console.warn(e); }
+  const rows = opponents.map(o => ({ name:o.name, level:o.level, rep:o.arenaRep, isMe:false }));
+  rows.push({ name:p.name, level:p.level, rep:p.arenaRep, isMe:true });
   rows.sort((a,b) => b.rep - a.rep);
   body.innerHTML = `<div class="clan-list" id="arenaRatingList"></div>`;
   const list = document.getElementById("arenaRatingList");
@@ -1627,53 +1643,91 @@ function renderArenaRating(){
     el.innerHTML = `
       <b style="width:22px;text-align:center;color:${i<3?"var(--gold)":"var(--text-dim)"};">${i+1}</b>
       <div class="opponent-main">
-        <span class="opponent-name">${r.clanIcon||"🙂"} ${r.clanTag?`<span class="clan-tag">[${r.clanTag}]</span>`:""} ${r.isMe?"<b>"+r.name+" (вы)</b>":r.name}</span>
-        <span class="opponent-sub">Ур. ${r.level} · ${arenaRankTitle(r.rep)}</span>
+        <span class="opponent-name">${r.isMe?"<b>"+r.name+" (вы)</b>":r.name}</span>
+        <span class="opponent-sub">Ур. ${r.level} · ${arenaRankTitle(r.rep||0)}</span>
       </div>
-      <b style="color:var(--gold);white-space:nowrap;">${r.rep} реп.</b>
+      <b style="color:var(--gold);white-space:nowrap;">${r.rep||0} реп.</b>
     `;
     list.appendChild(el);
   });
 }
 
-function renderArenaList(){
+async function renderArenaList(){
   const body = document.getElementById("arenaBody");
-  const opponents = arenaOpponents();
+  body.innerHTML = `<p class="dim center-pad">Загрузка…</p>`;
+  let opponents = [];
+  try { opponents = await apiFetch("/api/arena/opponents"); } catch (e) { console.warn(e); }
   body.innerHTML = `<div class="clan-list" id="arenaOppList"></div>`;
   const list = document.getElementById("arenaOppList");
+  if (!opponents.length){
+    list.innerHTML = `<p class="dim center-pad">Пока нет других игроков — позови друзей!</p>`;
+    return;
+  }
   opponents.forEach(o => {
-    const shielded = o.shieldUntil && o.shieldUntil > Date.now();
     const el = document.createElement("div");
     el.className = "opponent-row";
     el.innerHTML = `
-      <span class="status-dot ${o.online?"online":"offline"}"></span>
+      <span class="status-dot online"></span>
       <div class="opponent-main">
-        <span class="opponent-name">${o.clanIcon} <span class="clan-tag">[${o.clanTag}]</span> ${o.name}</span>
-        <span class="opponent-sub">Ур. ${o.level} · ${o.online?"в сети":"не в сети"}</span>
+        <span class="opponent-name">${o.name}</span>
+        <span class="opponent-sub">Ур. ${o.level}</span>
       </div>
-      ${shielded ? `<span class="shield-badge">🛡 щит</span>` : (o.online ? `<button class="btn primary small challengeBtn">Вызвать</button>` : `<span class="dim" style="font-size:11.5px;">офлайн</span>`)}
+      ${o.shielded ? `<span class="shield-badge">🛡 щит</span>` : `<button class="btn primary small challengeBtn">Вызвать</button>`}
     `;
-    if (o.online && !shielded){
+    if (!o.shielded){
       el.querySelector(".challengeBtn").addEventListener("click", () => challengeOpponent(o));
     }
     list.appendChild(el);
   });
 }
 
-function challengeOpponent(opponent){
+async function challengeOpponent(opponent){
   if (isBusy()){ toast(`Вы заняты (${busyLabel()}) — нельзя вызвать на арену`); return; }
-  toast(`Вызов отправлен игроку ${opponent.name}... ждём ответа (до 30 сек)`);
-  setTimeout(() => {
-    toast(`${opponent.name} принял(а) бой!`);
-    screenStack.push("battle");
-    document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
-    document.querySelector('.screen[data-screen="battle"]').classList.add("active");
-    document.getElementById("screenTitle").textContent = `Арена: ${opponent.name}`;
-    document.getElementById("backBtn").classList.remove("hidden");
-    document.getElementById("menuBtn").classList.add("hidden");
-    document.querySelectorAll(".nav-btn").forEach(b => b.classList.remove("active"));
-    startBattle("arena", opponent);
-  }, 900);
+  toast(`Вызов отправлен игроку ${opponent.name}…`);
+  let result;
+  try {
+    result = await apiFetch("/api/arena/challenge", { method:"POST", body: JSON.stringify({ opponentTelegramId: opponent.telegramId }) });
+  } catch (e) {
+    toast(e.data?.error === "shielded" ? "Соперник под щитом" : "Не удалось начать бой");
+    return;
+  }
+  const savedLoaded = await apiFetch("/api/load");
+  if (savedLoaded && !savedLoaded.isNew){
+    Object.assign(state.player, savedLoaded.state.player || {});
+  }
+  renderHome();
+
+  screenStack.push("battle");
+  document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+  document.querySelector('.screen[data-screen="battle"]').classList.add("active");
+  document.getElementById("screenTitle").textContent = `Арена: ${opponent.name}`;
+  document.getElementById("backBtn").classList.remove("hidden");
+  document.getElementById("menuBtn").classList.add("hidden");
+  document.querySelectorAll(".nav-btn").forEach(b => b.classList.remove("active"));
+  document.getElementById("battleSelectView").classList.add("hidden");
+  document.getElementById("battleFightView").classList.remove("hidden");
+  document.getElementById("battleActiveArea").classList.add("hidden");
+  document.getElementById("battleLog").innerHTML = "";
+  document.getElementById("enemyName").textContent = opponent.name;
+  document.getElementById("enemyLevel").textContent = opponent.level;
+  document.getElementById("enemy-hp-text").textContent = result.won ? "0 / 100" : "100 / 100";
+  document.getElementById("enemy-hp-bar").style.width = result.won ? "0%" : "100%";
+  document.getElementById("battle-p-hp-text").textContent = `${state.player.hp} / ${state.player.maxHp}`;
+  document.getElementById("battle-p-hp-bar").style.width = `${Math.max(0,(state.player.hp/state.player.maxHp)*100)}%`;
+
+  const resultBox = document.getElementById("battleResult");
+  resultBox.classList.remove("hidden");
+  const chips = result.won
+    ? `<span class="br-chip">🏆 +15 очков арены</span><span class="br-chip">⭐ +15 репутации</span><span class="br-chip">🛡 щит сопернику на 10 мин</span>`
+    : `<span class="br-chip">🥊 +5 очков арены</span>`;
+  resultBox.className = "battle-result " + (result.won ? "win" : "lose");
+  resultBox.innerHTML = `
+    <div class="br-icon">${result.won?"🏆":"💀"}</div>
+    <div class="br-title">${result.won?"Победа":"Поражение"}</div>
+    <div class="br-sub">${opponent.name} · дуэль решена за ${result.rounds} раунд(ов)</div>
+    <div class="br-rewards">${chips}</div>
+    <button class="btn primary full" id="battleContinueBtn">ВЕРНУТЬСЯ НА АРЕНУ</button>`;
+  document.getElementById("battleContinueBtn").addEventListener("click", () => showScreen("arena"));
 }
 
 function renderArenaShop(){
@@ -1714,240 +1768,195 @@ function buyBelt(id){
   toast(`Куплен и надет: ${tier.name}`);
 }
 
-/* ===== Territory Wars ===== */
-const WAR_PREP_SECONDS = 45; // демо: в реальной игре — 2 часа, здесь сжато для показа механики
+/* ===== Territory Wars (реальные кланы, сервер разрешает бои) ===== */
 const WAR_DECLARE_COST = 5000;
-let activeWar = null;
-let warTimerHandle = null;
-let warRosterGrowthHandle = null;
+let territoryOwners = {}; // districtId -> {clanId,name,tag,icon,color}
+let currentWarId = null;
+let warPollHandle = null;
+let clanInfoCache = {};
+let warLineRequestSeq = 0;
 
-function warAttackerClan(){ return clans.find(c => c.id === activeWar.attackerClanId); }
-function warDefenderClan(){ return activeWar.defenderClanId ? clans.find(c => c.id === activeWar.defenderClanId) : null; }
+async function refreshTerritoryOwners(){
+  try {
+    const r = await apiFetch("/api/territory");
+    territoryOwners = r.owners || {};
+  } catch (e) { console.warn("refreshTerritoryOwners failed:", e); }
+}
+
+async function getClanInfo(clanId){
+  if (!clanId) return null;
+  if (clanInfoCache[clanId]) return clanInfoCache[clanId];
+  try {
+    const r = await apiFetch(`/api/clans/${clanId}`);
+    clanInfoCache[clanId] = r.clan;
+    return r.clan;
+  } catch (e) { return null; }
+}
 
 function renderDistrictWarLine(d, owner){
   const line = document.getElementById("districtWarLine");
   if (!line) return;
-  const myC = myClan();
-  if (activeWar && activeWar.districtId === d.id && activeWar.status !== "resolved"){
-    line.innerHTML = `<button class="btn primary full" id="openWarBtn" style="margin-top:8px;">⚔️ ИДЁТ ВОЙНА — ОТКРЫТЬ</button>`;
-    document.getElementById("openWarBtn").addEventListener("click", () => showScreen("territorywar"));
-    return;
-  }
-  if (!myC){ line.innerHTML = ""; return; }
-  if (owner && owner.id === myC.id){ line.innerHTML = ""; return; }
-  if (activeWar && activeWar.status !== "resolved"){
-    line.innerHTML = `<div class="dim" style="margin-top:8px;">Сейчас уже идёт другая война — дождитесь окончания.</div>`;
-    return;
-  }
-  line.innerHTML = `<button class="btn ghost full" id="declareWarBtn" style="margin-top:8px;">ОБЪЯВИТЬ АТАКУ (−${WAR_DECLARE_COST.toLocaleString("ru-RU")} Т)</button>`;
-  document.getElementById("declareWarBtn").addEventListener("click", () => declareWar(d, owner));
+  const seq = ++warLineRequestSeq;
+  line.innerHTML = `<p class="dim" style="margin-top:8px;font-size:11px;">Проверка района…</p>`;
+  apiFetch(`/api/territory/${d.id}/war`).then(r => {
+    if (seq !== warLineRequestSeq) return;
+    const war = r.war;
+    if (war){
+      line.innerHTML = `<button class="btn primary full" id="openWarBtn" style="margin-top:8px;">⚔️ ИДЁТ ВОЙНА — ОТКРЫТЬ</button>`;
+      document.getElementById("openWarBtn").addEventListener("click", () => { currentWarId = war.id; showScreen("territorywar"); });
+      return;
+    }
+    if (!realClan){ line.innerHTML = ""; return; }
+    if (owner && owner.clanId === realClan.id){ line.innerHTML = ""; return; }
+    line.innerHTML = `<button class="btn ghost full" id="declareWarBtn" style="margin-top:8px;">ОБЪЯВИТЬ АТАКУ (−${WAR_DECLARE_COST.toLocaleString("ru-RU")} Т)</button>`;
+    document.getElementById("declareWarBtn").addEventListener("click", () => declareWar(d, owner));
+  }).catch(e => { if (seq === warLineRequestSeq){ console.warn("war check failed:", e); line.innerHTML = ""; } });
 }
 
-function declareWar(district, owner){
-  const myC = myClan();
-  if (!myC){ toast("Нужно состоять в клане"); return; }
-  if (state.player.rub < WAR_DECLARE_COST){ toast("Недостаточно Т на объявление атаки"); return; }
-  state.player.rub -= WAR_DECLARE_COST;
-  activeWar = {
-    districtId: district.id, districtName: district.name,
-    attackerClanId: myC.id, defenderClanId: owner ? owner.id : null,
-    prepSecondsLeft: WAR_PREP_SECONDS,
-    attackerRoster: [], defenderRoster: [],
-    status: "preparing", attackerScore:0, defenderScore:0, log:[],
-  };
-  renderHome();
-  toast(`Атака на «${district.name}» объявлена! Собирайте отряд.`);
-  showScreen("territorywar");
+async function declareWar(district, owner){
+  if (!realClan){ toast("Нужно состоять в клане"); return; }
+  try {
+    const r = await apiFetch(`/api/territory/${district.id}/declare`, { method:"POST", body: JSON.stringify({}) });
+    currentWarId = r.war.id;
+    const savedLoaded = await apiFetch("/api/load");
+    if (savedLoaded && !savedLoaded.isNew) Object.assign(state.player, savedLoaded.state.player || {});
+    renderHome();
+    toast(`Атака на «${district.name}» объявлена! Собирайте отряд.`);
+    showScreen("territorywar");
+  } catch (e) {
+    const msg = {
+      "insufficient funds": `Недостаточно Т — нужно ${WAR_DECLARE_COST.toLocaleString("ru-RU")}`,
+      "war already active here": "Здесь уже идёт война",
+      "your clan is already at war": "Ваш клан уже воюет в другом районе",
+      "you already own this": "Это уже ваша территория",
+      "not in a clan": "Нужно состоять в клане",
+    }[e.data && e.data.error] || "Не удалось объявить войну";
+    toast(msg);
+  }
 }
 
 function renderWar(){
   const root = document.getElementById("warRoot");
-  if (!activeWar){
-    root.innerHTML = `<p class="dim center-pad">Сейчас нет активной войны. Объявите атаку на районе на карте, которым не владеет ваш клан.</p>`;
+  if (!currentWarId){
+    root.innerHTML = `<p class="dim center-pad">Сейчас нет открытой войны. Откройте её на карте — там, где уже идёт бой за район, либо объявите атаку сами.</p>`;
+    clearInterval(warPollHandle); warPollHandle = null;
     return;
   }
-  const atk = warAttackerClan();
-  const def = warDefenderClan();
+  loadAndRenderWar();
+  clearInterval(warPollHandle);
+  warPollHandle = setInterval(loadAndRenderWar, 3000);
+}
 
-  if (activeWar.status === "resolved"){
-    renderWarReport(root, atk, def);
+async function loadAndRenderWar(){
+  const root = document.getElementById("warRoot");
+  if (!currentWarId) return;
+  let war;
+  try {
+    const r = await apiFetch(`/api/territory/wars/${currentWarId}`);
+    war = r.war;
+  } catch (e) {
+    clearInterval(warPollHandle); warPollHandle = null;
+    root.innerHTML = `<p class="dim center-pad">Война не найдена.</p>`;
     return;
   }
+  if (war.status === "resolved"){
+    clearInterval(warPollHandle); warPollHandle = null;
+    await getClanInfo(war.attacker_clan_id);
+    if (war.defender_clan_id) await getClanInfo(war.defender_clan_id);
+    renderRealWarReport(root, war);
+    renderMap();
+    return;
+  }
+  await renderRealWarPrep(root, war);
+}
 
+async function renderRealWarPrep(root, war){
+  const atk = await getClanInfo(war.attacker_clan_id);
+  const def = war.defender_clan_id ? await getClanInfo(war.defender_clan_id) : null;
+  if (!realClan) await refreshRealClan();
+  const d = districts.find(x => x.id === war.district_id);
+  const secsLeft = Math.max(0, Math.round((Number(war.prep_ends_at) - Date.now())/1000));
+  const mm = String(Math.floor(secsLeft/60)).padStart(2,"0");
+  const ss = String(secsLeft%60).padStart(2,"0");
+  const atkRoster = war.attacker_roster || [];
+  const defRoster = war.defender_roster || [];
   root.innerHTML = `
     <div class="card">
       <div class="war-vs-row">
-        <div class="war-side"><div class="clan-emblem" style="background:${atk.color}">${atk.icon}</div><b>[${atk.tag}]</b><span class="dim">${atk.name}</span></div>
+        <div class="war-side"><div class="clan-emblem" style="background:${atk?atk.color:"#333"}">${atk?atk.icon:"⚔️"}</div><b>[${atk?atk.tag:"?"}]</b><span class="dim">${atk?atk.name:"—"}</span></div>
         <div class="war-vs-label">VS</div>
         <div class="war-side">${def?`<div class="clan-emblem" style="background:${def.color}">${def.icon}</div><b>[${def.tag}]</b><span class="dim">${def.name}</span>`:`<div class="clan-emblem">🏳️</div><b>Ничья территория</b>`}</div>
       </div>
-      <div class="war-timer-big" id="warTimerBig">00:${String(activeWar.prepSecondsLeft).padStart(2,"0")}</div>
-      <div class="war-status-label">До начала боя за «${activeWar.districtName}» — собирайте отряд</div>
+      <div class="war-timer-big" id="warTimerBig">${mm}:${ss}</div>
+      <div class="war-status-label">До начала боя за «${d?d.name:war.district_id}» — собирайте отряд</div>
     </div>
     <div class="roster-cols">
       <div class="roster-col">
-        <div class="roster-col-title">Атакующие (${activeWar.attackerRoster.length})</div>
-        <div id="atkRoster"></div>
+        <div class="roster-col-title">Атакующие (${atkRoster.length})</div>
+        <div id="atkRoster">${renderWarRosterHtml(atkRoster)}</div>
         <button class="btn primary full" id="joinAtkBtn" style="margin-top:4px;">Я В БОЮ</button>
       </div>
       <div class="roster-col">
-        <div class="roster-col-title">Защитники (${activeWar.defenderRoster.length})</div>
-        <div id="defRoster"></div>
+        <div class="roster-col-title">Защитники (${defRoster.length})</div>
+        <div id="defRoster">${renderWarRosterHtml(defRoster)}</div>
         <button class="btn primary full" id="joinDefBtn" style="margin-top:4px;">Я В БОЮ</button>
       </div>
     </div>
   `;
-  renderRosterLists();
-
-  const myC = myClan();
-  const isAttackerSide = !!(myC && myC.id === activeWar.attackerClanId);
-  const isDefenderSide = !!(myC && def && myC.id === activeWar.defenderClanId);
+  const myTid = window.myTelegramId;
+  const isAttackerSide = !!(realClan && realClan.id === war.attacker_clan_id);
+  const isDefenderSide = !!(realClan && def && realClan.id === war.defender_clan_id);
+  const inAtk = atkRoster.some(r => r.telegramId === myTid);
+  const inDef = defRoster.some(r => r.telegramId === myTid);
   const joinAtkBtn = document.getElementById("joinAtkBtn");
   const joinDefBtn = document.getElementById("joinDefBtn");
-  joinAtkBtn.disabled = !isAttackerSide || activeWar.attackerRoster.includes(state.player.name);
-  joinDefBtn.disabled = !isDefenderSide || activeWar.defenderRoster.includes(state.player.name);
-  joinAtkBtn.addEventListener("click", () => {
-    if (!activeWar.attackerRoster.includes(state.player.name)) activeWar.attackerRoster.push(state.player.name);
-    renderWar();
-  });
-  joinDefBtn.addEventListener("click", () => {
-    if (!activeWar.defenderRoster.includes(state.player.name)) activeWar.defenderRoster.push(state.player.name);
-    renderWar();
-  });
-
-  if (!warTimerHandle) startWarCountdown();
+  joinAtkBtn.disabled = !isAttackerSide || inAtk;
+  joinDefBtn.disabled = !isDefenderSide || inDef;
+  joinAtkBtn.addEventListener("click", () => joinWarSide("attacker"));
+  joinDefBtn.addEventListener("click", () => joinWarSide("defender"));
 }
 
-function renderRosterLists(){
-  const atkBox = document.getElementById("atkRoster");
-  const defBox = document.getElementById("defRoster");
-  if (!atkBox || !defBox) return;
-  atkBox.innerHTML = activeWar.attackerRoster.map(n => `<div class="roster-item">🟢 ${n===state.player.name?renderName():n}</div>`).join("") || `<p class="dim" style="font-size:11px;">Пока никого</p>`;
-  defBox.innerHTML = activeWar.defenderRoster.map(n => `<div class="roster-item">🟢 ${n===state.player.name?renderName():n}</div>`).join("") || `<p class="dim" style="font-size:11px;">Пока никого</p>`;
+function renderWarRosterHtml(roster){
+  if (!roster.length) return `<p class="dim" style="font-size:11px;">Пока никого</p>`;
+  return roster.map(r => `<div class="roster-item">🟢 ${r.telegramId === window.myTelegramId ? renderName() : (r.name||"Игрок")}</div>`).join("");
 }
 
-function startWarCountdown(){
-  clearInterval(warTimerHandle);
-  clearInterval(warRosterGrowthHandle);
-  warRosterGrowthHandle = setInterval(() => {
-    if (!activeWar || activeWar.status !== "preparing") return;
-    const atk = warAttackerClan();
-    const def = warDefenderClan();
-    if (Math.random() < 0.5){
-      const pool = atk.members.filter(m => m.online && !activeWar.attackerRoster.includes(m.name));
-      if (pool.length) activeWar.attackerRoster.push(pool[Math.floor(Math.random()*pool.length)].name);
-    }
-    if (def && Math.random() < 0.5){
-      const pool = def.members.filter(m => m.online && !activeWar.defenderRoster.includes(m.name));
-      if (pool.length) activeWar.defenderRoster.push(pool[Math.floor(Math.random()*pool.length)].name);
-    }
-    const warScreen = document.querySelector('.screen[data-screen="territorywar"]');
-    if (warScreen && warScreen.classList.contains("active")) renderRosterLists();
-  }, 4000);
-
-  warTimerHandle = setInterval(() => {
-    if (!activeWar) { clearInterval(warTimerHandle); warTimerHandle = null; return; }
-    activeWar.prepSecondsLeft--;
-    const timerEl = document.getElementById("warTimerBig");
-    if (timerEl) timerEl.textContent = `00:${String(Math.max(0,activeWar.prepSecondsLeft)).padStart(2,"0")}`;
-    if (activeWar.prepSecondsLeft <= 0){
-      clearInterval(warTimerHandle); warTimerHandle = null;
-      clearInterval(warRosterGrowthHandle); warRosterGrowthHandle = null;
-      resolveWar();
-    }
-  }, 1000);
-}
-
-function getFighterStats(name, clan){
-  if (name === state.player.name){
-    const s = effectiveStats();
-    const w = getEquippedWeapon();
-    return { str:s.str, agi:s.agi, luck:s.luck, hpStat:s.hpStat, weaponAvg:(w.dmgMin+w.dmgMax)/2, def: zoneDefense("chest") };
+async function joinWarSide(side){
+  try {
+    await apiFetch(`/api/territory/wars/${currentWarId}/join`, { method:"POST", body: JSON.stringify({ side }) });
+    toast("Вы вступили в бой!");
+    loadAndRenderWar();
+  } catch (e) {
+    const msg = {
+      "wrong clan for this side": "Это не ваш клан",
+      "war not open for joining": "Набор отряда уже закрыт",
+      "not in a clan": "Нужно состоять в клане",
+    }[e.data && e.data.error] || "Не удалось присоединиться";
+    toast(msg);
   }
-  const m = clan.members.find(x => x.name === name);
-  return { str:m.stats.str, agi:m.stats.agi, luck:m.stats.luck, hpStat:m.stats.hpStat, weaponAvg:(m.weapon.dmgMin+m.weapon.dmgMax)/2, def: Math.round(m.stats.hpStat/3) };
 }
 
-function simulateDuel(a, b){
-  let hpA = 60 + a.hpStat*3, hpB = 60 + b.hpStat*3;
-  let rounds = 0;
-  while (hpA > 0 && hpB > 0 && rounds < 20){
-    rounds++;
-    const zoneA = ["head","chest","belly","legs"][Math.floor(Math.random()*4)];
-    const zoneBBlock = ["head","chest","belly","legs"][Math.floor(Math.random()*4)];
-    const resA = computeDamage({str:a.str,agi:a.agi,luck:a.luck,agiDef:b.agi}, a.weaponAvg, zoneA, zoneBBlock, b.def);
-    if (!resA.dodged) hpB -= resA.dmg;
-    if (hpB <= 0) break;
-    const zoneB = ["head","chest","belly","legs"][Math.floor(Math.random()*4)];
-    const zoneABlock = ["head","chest","belly","legs"][Math.floor(Math.random()*4)];
-    const resB = computeDamage({str:b.str,agi:b.agi,luck:b.luck,agiDef:a.agi}, b.weaponAvg, zoneB, zoneABlock, a.def);
-    if (!resB.dodged) hpA -= resB.dmg;
-  }
-  return hpA >= hpB;
-}
-
-function resolveWar(){
-  const atk = warAttackerClan();
-  const def = warDefenderClan();
-  activeWar.status = "resolved";
-  const atkNames = [...activeWar.attackerRoster];
-  const defNames = [...activeWar.defenderRoster];
-  const pairs = Math.min(atkNames.length, defNames.length);
-  const log = [];
-  let atkScore = 0, defScore = 0;
-
-  for (let i=0;i<pairs;i++){
-    const fa = getFighterStats(atkNames[i], atk);
-    const fb = getFighterStats(defNames[i], def);
-    const aWins = simulateDuel(fa, fb);
-    if (aWins){ atkScore++; log.push(`⚔️ ${atkNames[i]} побеждает ${defNames[i]}`); }
-    else { defScore++; log.push(`🛡 ${defNames[i]} отбивает ${atkNames[i]}`); }
-  }
-  const leftoverAtk = atkNames.slice(pairs);
-  const leftoverDef = defNames.slice(pairs);
-  leftoverAtk.forEach(n => {
-    if (Math.random() < 0.6){ atkScore++; log.push(`⚔️ ${n} прорывается через охрану района`); }
-    else { log.push(`🛡 Охрана района останавливает ${n}`); }
-  });
-  leftoverDef.forEach(n => {
-    if (Math.random() < 0.5){ defScore++; log.push(`🛡 ${n} держит рубеж в одиночку`); }
-  });
-
-  activeWar.attackerScore = atkScore;
-  activeWar.defenderScore = defScore;
-  activeWar.log = log;
-
-  const attackerWon = atkScore > defScore;
-  if (attackerWon){
-    if (def) def.territories = def.territories.filter(t => t !== activeWar.districtName);
-    if (!atk.territories.includes(activeWar.districtName)) atk.territories.push(activeWar.districtName);
-  }
-  activeWar.winnerIsAttacker = attackerWon;
-
-  renderWar();
-  renderMap();
-  updateClanTaxBanner();
-  toast(attackerWon ? `${atk.name} захватывает «${activeWar.districtName}»!` : `${def?def.name:"Защитники"} отстояли «${activeWar.districtName}»!`);
-}
-
-function renderWarReport(root, atk, def){
+function renderRealWarReport(root, war){
+  const result = war.result || {};
+  const atk = clanInfoCache[war.attacker_clan_id];
+  const def = war.defender_clan_id ? clanInfoCache[war.defender_clan_id] : null;
   root.innerHTML = `
     <div class="card">
-      <div class="card-title">${activeWar.winnerIsAttacker ? "🏆 Территория захвачена" : "🛡 Атака отбита"}</div>
+      <div class="card-title">${result.attackerWon ? "🏆 Территория захвачена" : "🛡 Атака отбита"}</div>
       <div class="war-vs-row">
-        <div class="war-side"><div class="clan-emblem" style="background:${atk.color}">${atk.icon}</div><b>${activeWar.attackerScore}</b></div>
+        <div class="war-side">${atk?`<div class="clan-emblem" style="background:${atk.color}">${atk.icon}</div>`:""}<b>${result.attackerScore||0}</b></div>
         <div class="war-vs-label">VS</div>
-        <div class="war-side">${def?`<div class="clan-emblem" style="background:${def.color}">${def.icon}</div>`:`<div class="clan-emblem">🏳️</div>`}<b>${activeWar.defenderScore}</b></div>
+        <div class="war-side">${def?`<div class="clan-emblem" style="background:${def.color}">${def.icon}</div>`:`<div class="clan-emblem">🏳️</div>`}<b>${result.defenderScore||0}</b></div>
       </div>
     </div>
     <div class="card">
       <div class="card-title">Отчёт о бое</div>
-      ${activeWar.log.map(l => `<div class="war-report-row">${l}</div>`).join("")}
+      ${(result.log||[]).map(l => `<div class="war-report-row">${l}</div>`).join("")}
     </div>
     <button class="btn primary full" id="closeWarBtn">ЗАКРЫТЬ</button>
   `;
   document.getElementById("closeWarBtn").addEventListener("click", () => {
-    activeWar = null;
+    currentWarId = null;
     showScreen("map");
   });
 }
@@ -2012,6 +2021,7 @@ function showScreen(name, opts={}){
 
   if (name === "stub" && opts.title) document.getElementById("stubText").textContent = `Раздел «${opts.title}» появится в следующей версии.`;
   if (name !== screenStack[screenStack.length-1]) screenStack.push(name);
+  if (warPollHandle && name !== "territorywar"){ clearInterval(warPollHandle); warPollHandle = null; }
 
   if (name === "map") renderMap();
   if (name === "character") renderCharacter();
@@ -2080,11 +2090,16 @@ function renderHome(){
 function updateClanTaxBanner(){
   const banner = document.getElementById("clanTaxBanner");
   if (!banner) return;
-  const c = myClan();
-  if (!c || c.territories.length === 0){ banner.classList.add("hidden"); return; }
-  const tax = clanDailyTax(c);
+  const c = realClan;
+  if (!c || !c.territories || c.territories.length === 0){ banner.classList.add("hidden"); return; }
+  const tax = c.territories.reduce((sum, t) => {
+    const d = districts.find(x => x.id === t.district_id);
+    return sum + (d ? d.taxValue : 0);
+  }, 0);
+  const cooldownMs = 20 * 60 * 60 * 1000;
+  const canClaim = !c.tax_claimed_at || (Date.now() - Number(c.tax_claimed_at)) >= cooldownMs;
   banner.classList.remove("hidden");
-  banner.innerHTML = `<span class="td"></span><span>Клан «<b>${c.name}</b>» держит ${c.territories.length} ${c.territories.length===1?"район":"района"} — казна <b>${c.treasury.toLocaleString("ru-RU")} Т</b>${c.taxClaimedToday?"":`, налог за сегодня ещё не собран (+${tax.toLocaleString("ru-RU")} Т)`}</span>`;
+  banner.innerHTML = `<span class="td"></span><span>Клан «<b>${c.name}</b>» держит ${c.territories.length} ${c.territories.length===1?"район":"района"} — казна <b>${c.treasury.toLocaleString("ru-RU")} Т</b>${canClaim?`, налог ещё не собран (+${tax.toLocaleString("ru-RU")} Т)`:""}</span>`;
 }
 
 /* ===== Render: Map ===== */
@@ -2096,20 +2111,19 @@ function findLocation(id){
   return null;
 }
 
-function renderMap(){
+async function renderMap(){
   const grid = document.getElementById("districtGrid");
+  await refreshTerritoryOwners();
   grid.innerHTML = "";
   districts.forEach(d => {
-    const owner = ownerOfDistrict(d.name);
+    const owner = territoryOwners[d.id];
     const div = document.createElement("div");
     div.dataset.locId = d.id;
     div.className = "district-card" + (d.id===currentDistrictId?" current":"") + (!d.unlocked?" locked":"");
-    const atWar = activeWar && activeWar.districtId === d.id && activeWar.status !== "resolved";
     div.innerHTML = `
-      ${owner?`<span class="territory-strip" style="background:${owner.flagColor}"></span>`:""}
-      ${owner?`<span class="territory-badge" style="border-color:${owner.flagColor}">${owner.icon} ${owner.tag}</span>`:""}
+      ${owner?`<span class="territory-strip" style="background:${owner.color}"></span>`:""}
+      ${owner?`<span class="territory-badge" style="border-color:${owner.color}">${owner.icon} ${owner.tag}</span>`:""}
       ${!d.unlocked?'<span class="lock-icon">🔒</span>':""}
-      ${atWar?'<span class="war-badge-map">⚔️ ВОЙНА</span>':""}
       <div class="dn">${d.name}</div><div class="dl">Уровень: ${d.level}</div>`;
     div.addEventListener("click", () => {
       if (!d.unlocked){ toast(`Район заблокирован. Доступен с уровня ${d.level.split(" ")[0]}`); return; }
@@ -2155,7 +2169,7 @@ function selectDistrict(id, silent){
     document.getElementById("districtWarLine").innerHTML = "";
   } else {
     document.getElementById("districtLevelLine").innerHTML = `Рекомендуемый уровень: <b>${d.level}</b>`;
-    const owner = ownerOfDistrict(d.name);
+    const owner = territoryOwners[d.id];
     document.getElementById("districtOwnerLine").innerHTML = owner
       ? `<div class="owner-line"><div class="clan-emblem" style="background:${owner.color}">${owner.icon}</div><span>Контролирует: <span class="clan-tag">[${owner.tag}]</span> ${owner.name}</span></div>`
       : `<div class="owner-line dim">Ничейная территория</div>`;
@@ -2342,9 +2356,8 @@ function itemCompareDelta(item, current){
 
 /* ===== Achievements ===== */
 function territoriesHeldByPlayerClan(){
-  const c = myClan();
-  if (!c) return 0;
-  return c.territories.length;
+  if (realClan && realClan.territories) return realClan.territories.length;
+  return 0;
 }
 
 function renderAchievements(){
@@ -4580,3 +4593,4 @@ setInterval(tickHpRegen, HP_REGEN_TICK_SECONDS * 1000);
 /* ===== Init ===== */
 requestNotifyPermission();
 renderHome();
+refreshRealClan().then(() => updateClanTaxBanner());
