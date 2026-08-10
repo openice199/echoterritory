@@ -394,6 +394,36 @@ async function resolveWarRow(warId, result) {
   await pool.query("UPDATE wars SET status='resolved', result=$1, resolved_at=$2 WHERE id=$3", [JSON.stringify(result), Date.now(), warId]);
 }
 
+/* ===== Уведомления о завершённой длительной работе (рыбалка, ковка и т.п.) =====
+   Работа — это часть JSONB-состояния игрока (state.player.activeJob), схема для
+   неё не нужна: sweep просто ищет игроков, у кого дедлайн уже прошёл, но флаг
+   notified ещё не выставлен, шлёт им сообщение в бота и точечно патчит только
+   этот вложенный флаг через jsonb_set — без полной перезаписи state_json, чтобы
+   не столкнуться с параллельным автосохранением клиента.
+ */
+async function listPendingJobNotifications(now) {
+  await ready;
+  const res = await pool.query(
+    `SELECT telegram_id, state_json->'player'->'activeJob' AS job
+     FROM players
+     WHERE state_json->'player'->'activeJob' IS NOT NULL
+       AND (state_json->'player'->'activeJob'->>'notified') IS DISTINCT FROM 'true'
+       AND ((state_json->'player'->'activeJob'->>'startedAt')::bigint
+            + (state_json->'player'->'activeJob'->>'durationSec')::numeric * 1000) <= $1`,
+    [now]
+  );
+  return res.rows;
+}
+
+async function markJobNotified(telegramId) {
+  await ready;
+  await pool.query(
+    `UPDATE players SET state_json = jsonb_set(state_json, '{player,activeJob,notified}', 'true'::jsonb)
+     WHERE telegram_id = $1`,
+    [telegramId]
+  );
+}
+
 async function collectClanTax(clanId, taxTable) {
   await ready;
   const client = await pool.connect();
@@ -430,4 +460,5 @@ module.exports = {
   listTerritories, getTerritoryOwner, setTerritoryOwner,
   getActiveWarForDistrict, getActiveWarForClan, getWar, createWar, joinWarRoster,
   getExpiredWars, resolveWarRow, collectClanTax,
+  listPendingJobNotifications, markJobNotified,
 };

@@ -211,6 +211,17 @@ function updateBusyBanner(){
   }
 }
 
+// Отмечаем длительную активность (рыбалка, готовка, сбор и т.п.) в сохраняемом
+// состоянии — чтобы прогресс переживал закрытие приложения: при следующем заходе
+// resolveActiveJobOnLoad() либо мгновенно завершит её (если время вышло), либо
+// докрутит таймер с правильным остатком. См. ACTIVE_JOB_DEFS ниже.
+function beginActiveJob(kind, targetId, durationSec){
+  state.player.activeJob = { kind, targetId: targetId ?? null, startedAt: Date.now(), durationSec };
+}
+function endActiveJob(){
+  state.player.activeJob = null;
+}
+
 /* ===== Уведомления браузера (замена push от Telegram-бота в проде) ===== */
 function requestNotifyPermission(){
   if ("Notification" in window && Notification.permission === "default"){
@@ -2759,6 +2770,7 @@ function startFishing(fishId){
   fishingActive = true;
   fishingTargetId = fishId;
   fishingSecondsLeft = FISHING_SECONDS;
+  beginActiveJob("fishing", fishId, FISHING_SECONDS);
   renderFishingView();
   updateBusyBanner();
   clearInterval(fishingHandle);
@@ -2774,6 +2786,7 @@ function startFishing(fishId){
   }, 1000);
 }
 function finishFishing(){
+  endActiveJob();
   const f = fishSpecies.find(x => x.id === fishingTargetId);
   const caught = f.catchMin + Math.floor(Math.random()*(f.catchMax-f.catchMin+1));
   const existing = findItem(f.id);
@@ -2831,6 +2844,7 @@ function startCooking(recipeId){
   cookingActive = true;
   cookingTargetId = recipeId;
   cookingSecondsLeft = COOKING_SECONDS;
+  beginActiveJob("cooking", recipeId, COOKING_SECONDS);
   renderCookingView();
   updateBusyBanner();
   clearInterval(cookingHandle);
@@ -2846,6 +2860,7 @@ function startCooking(recipeId){
   }, 1000);
 }
 function finishCooking(){
+  endActiveJob();
   const r = cookRecipes.find(x => x.id === cookingTargetId);
   const existing = findItem(r.id);
   if (existing) existing.count += 1;
@@ -2910,6 +2925,7 @@ function startGather(){
   renderHome();
   gatherActive = true;
   gatherSecondsLeft = GATHER_DANDELION_SECONDS;
+  beginActiveJob("gather", null, GATHER_DANDELION_SECONDS);
   renderGatherView();
   updateBusyBanner();
   clearInterval(gatherHandle);
@@ -2925,6 +2941,7 @@ function startGather(){
   }, 1000);
 }
 function finishGather(){
+  endActiveJob();
   const caught = 1 + Math.floor(Math.random()*5);
   const existing = findItem("dandelion");
   if (existing) existing.count += caught;
@@ -2980,6 +2997,7 @@ function startBrew(recipeId){
   brewActive = true;
   brewTargetId = recipeId;
   brewSecondsLeft = BREW_SECONDS;
+  beginActiveJob("brew", recipeId, BREW_SECONDS);
   renderBrewView();
   updateBusyBanner();
   clearInterval(brewHandle);
@@ -2995,6 +3013,7 @@ function startBrew(recipeId){
   }, 1000);
 }
 function finishBrew(){
+  endActiveJob();
   const r = elixirRecipes.find(x => x.id === brewTargetId);
   const existing = findItem(r.id);
   if (existing) existing.count += 1;
@@ -3059,6 +3078,7 @@ function startGatherSeaweed(){
   renderHome();
   seaweedActive = true;
   seaweedSecondsLeft = GATHER_SEAWEED_SECONDS;
+  beginActiveJob("seaweed", null, GATHER_SEAWEED_SECONDS);
   renderSeaweedGatherView();
   updateBusyBanner();
   clearInterval(seaweedHandle);
@@ -3074,6 +3094,7 @@ function startGatherSeaweed(){
   }, 1000);
 }
 function finishGatherSeaweed(){
+  endActiveJob();
   const caught = 1 + Math.floor(Math.random()*5);
   const existing = findItem("seaweed");
   if (existing) existing.count += caught;
@@ -3129,6 +3150,7 @@ function startBrewPotion(recipeId){
   potionBrewActive = true;
   potionBrewTargetId = recipeId;
   potionBrewSecondsLeft = BREW_POTION_SECONDS;
+  beginActiveJob("potionBrew", recipeId, BREW_POTION_SECONDS);
   renderPotionBrewView();
   updateBusyBanner();
   clearInterval(potionBrewHandle);
@@ -3144,6 +3166,7 @@ function startBrewPotion(recipeId){
   }, 1000);
 }
 function finishBrewPotion(){
+  endActiveJob();
   const r = potionRecipes.find(x => x.id === potionBrewTargetId);
   const existing = findItem(r.id);
   if (existing) existing.count += 1;
@@ -3208,6 +3231,7 @@ function startGatherScrap(){
   renderHome();
   scrapActive = true;
   scrapSecondsLeft = GATHER_SCRAP_SECONDS;
+  beginActiveJob("scrap", null, GATHER_SCRAP_SECONDS);
   renderScrapGatherView();
   updateBusyBanner();
   clearInterval(scrapHandle);
@@ -3223,6 +3247,7 @@ function startGatherScrap(){
   }, 1000);
 }
 function finishGatherScrap(){
+  endActiveJob();
   const caught = 1 + Math.floor(Math.random()*5);
   const existing = findItem("scrap");
   if (existing) existing.count += caught;
@@ -3282,6 +3307,7 @@ function startForge(recipeId){
   forgeActive = true;
   forgeTargetId = recipeId;
   forgeSecondsLeft = FORGE_SECONDS;
+  beginActiveJob("forge", recipeId, FORGE_SECONDS);
   renderForgeView();
   updateBusyBanner();
   clearInterval(forgeHandle);
@@ -3297,6 +3323,7 @@ function startForge(recipeId){
   }, 1000);
 }
 function finishForge(){
+  endActiveJob();
   const r = smithRecipes.find(x => x.id === forgeTargetId);
   const existing = findItem(r.id);
   if (existing) existing.count += 1;
@@ -3361,6 +3388,7 @@ function startGatherGem(){
   renderHome();
   gemActive = true;
   gemSecondsLeft = GATHER_GEM_SECONDS;
+  beginActiveJob("gem", null, GATHER_GEM_SECONDS);
   renderGemGatherView();
   updateBusyBanner();
   clearInterval(gemHandle);
@@ -3376,6 +3404,7 @@ function startGatherGem(){
   }, 1000);
 }
 function finishGatherGem(){
+  endActiveJob();
   const caught = 1 + Math.floor(Math.random()*5);
   const existing = findItem("gem");
   if (existing) existing.count += caught;
@@ -3438,6 +3467,7 @@ function startSet(recipeId){
   setActive = true;
   setTargetId = recipeId;
   setSecondsLeft = SET_GEM_SECONDS;
+  beginActiveJob("set", recipeId, SET_GEM_SECONDS);
   renderSetView();
   updateBusyBanner();
   clearInterval(setHandle);
@@ -3453,6 +3483,7 @@ function startSet(recipeId){
   }, 1000);
 }
 function finishSet(){
+  endActiveJob();
   const r = jewelryRecipes.find(x => x.id === setTargetId);
   const existing = findItem(r.id);
   const equipSlot = r.statBonus ? "bracelet" : "accessory";
@@ -3518,6 +3549,7 @@ function startGatherFabric(){
   renderHome();
   fabricActive = true;
   fabricSecondsLeft = GATHER_FABRIC_SECONDS;
+  beginActiveJob("fabric", null, GATHER_FABRIC_SECONDS);
   renderFabricGatherView();
   updateBusyBanner();
   clearInterval(fabricHandle);
@@ -3533,6 +3565,7 @@ function startGatherFabric(){
   }, 1000);
 }
 function finishGatherFabric(){
+  endActiveJob();
   const caught = 1 + Math.floor(Math.random()*5);
   const existing = findItem("fabric");
   if (existing) existing.count += caught;
@@ -3603,6 +3636,7 @@ function startSew(catalogId, fabricNeed){
   sewActive = true;
   sewTargetId = catalogId;
   sewSecondsLeft = SEW_SECONDS;
+  beginActiveJob("sew", catalogId, SEW_SECONDS);
   renderSewView();
   updateBusyBanner();
   clearInterval(sewHandle);
@@ -3618,6 +3652,7 @@ function startSew(catalogId, fabricNeed){
   }, 1000);
 }
 function finishSew(){
+  endActiveJob();
   const item = catalogItem(sewTargetId);
   addOrStackItem(item, 1);
   state.player.portnoyMastery++;
@@ -4572,6 +4607,59 @@ function endBattle(won){
   }
   renderHome();
   document.getElementById("battleContinueBtn").addEventListener("click", () => showBattleTargetSelect());
+}
+
+/* ===== Восстановление активной работы после закрытия приложения =====
+   state.player.activeJob переживает автосохранение (каждые 10с + при сворачивании),
+   поэтому при следующем заходе можно либо мгновенно завершить работу (если время
+   истекло, пока приложения не было открыто), либо докрутить таймер с верным остатком. */
+const ACTIVE_JOB_DEFS = {
+  fishing:    { setActive:v=>fishingActive=v, setTarget:v=>fishingTargetId=v, setSeconds:v=>fishingSecondsLeft=v, getSeconds:()=>fishingSecondsLeft, setHandle:v=>fishingHandle=v, clearHandle:()=>clearInterval(fishingHandle), timerElId:"fishTimer", finish:finishFishing, render:renderFishingView },
+  cooking:    { setActive:v=>cookingActive=v, setTarget:v=>cookingTargetId=v, setSeconds:v=>cookingSecondsLeft=v, getSeconds:()=>cookingSecondsLeft, setHandle:v=>cookingHandle=v, clearHandle:()=>clearInterval(cookingHandle), timerElId:"cookTimer", finish:finishCooking, render:renderCookingView },
+  gather:     { setActive:v=>gatherActive=v, setTarget:null, setSeconds:v=>gatherSecondsLeft=v, getSeconds:()=>gatherSecondsLeft, setHandle:v=>gatherHandle=v, clearHandle:()=>clearInterval(gatherHandle), timerElId:"gatherTimer", finish:finishGather, render:renderGatherView },
+  brew:       { setActive:v=>brewActive=v, setTarget:v=>brewTargetId=v, setSeconds:v=>brewSecondsLeft=v, getSeconds:()=>brewSecondsLeft, setHandle:v=>brewHandle=v, clearHandle:()=>clearInterval(brewHandle), timerElId:"brewTimer", finish:finishBrew, render:renderBrewView },
+  seaweed:    { setActive:v=>seaweedActive=v, setTarget:null, setSeconds:v=>seaweedSecondsLeft=v, getSeconds:()=>seaweedSecondsLeft, setHandle:v=>seaweedHandle=v, clearHandle:()=>clearInterval(seaweedHandle), timerElId:"seaweedTimer", finish:finishGatherSeaweed, render:renderSeaweedGatherView },
+  potionBrew: { setActive:v=>potionBrewActive=v, setTarget:v=>potionBrewTargetId=v, setSeconds:v=>potionBrewSecondsLeft=v, getSeconds:()=>potionBrewSecondsLeft, setHandle:v=>potionBrewHandle=v, clearHandle:()=>clearInterval(potionBrewHandle), timerElId:"potionBrewTimer", finish:finishBrewPotion, render:renderPotionBrewView },
+  scrap:      { setActive:v=>scrapActive=v, setTarget:null, setSeconds:v=>scrapSecondsLeft=v, getSeconds:()=>scrapSecondsLeft, setHandle:v=>scrapHandle=v, clearHandle:()=>clearInterval(scrapHandle), timerElId:"scrapTimer", finish:finishGatherScrap, render:renderScrapGatherView },
+  forge:      { setActive:v=>forgeActive=v, setTarget:v=>forgeTargetId=v, setSeconds:v=>forgeSecondsLeft=v, getSeconds:()=>forgeSecondsLeft, setHandle:v=>forgeHandle=v, clearHandle:()=>clearInterval(forgeHandle), timerElId:"forgeTimer", finish:finishForge, render:renderForgeView },
+  gem:        { setActive:v=>gemActive=v, setTarget:null, setSeconds:v=>gemSecondsLeft=v, getSeconds:()=>gemSecondsLeft, setHandle:v=>gemHandle=v, clearHandle:()=>clearInterval(gemHandle), timerElId:"gemTimer", finish:finishGatherGem, render:renderGemGatherView },
+  set:        { setActive:v=>setActive=v, setTarget:v=>setTargetId=v, setSeconds:v=>setSecondsLeft=v, getSeconds:()=>setSecondsLeft, setHandle:v=>setHandle=v, clearHandle:()=>clearInterval(setHandle), timerElId:"setTimer", finish:finishSet, render:renderSetView },
+  fabric:     { setActive:v=>fabricActive=v, setTarget:null, setSeconds:v=>fabricSecondsLeft=v, getSeconds:()=>fabricSecondsLeft, setHandle:v=>fabricHandle=v, clearHandle:()=>clearInterval(fabricHandle), timerElId:"fabricTimer", finish:finishGatherFabric, render:renderFabricGatherView },
+  sew:        { setActive:v=>sewActive=v, setTarget:v=>sewTargetId=v, setSeconds:v=>sewSecondsLeft=v, getSeconds:()=>sewSecondsLeft, setHandle:v=>sewHandle=v, clearHandle:()=>clearInterval(sewHandle), timerElId:"sewTimer", finish:finishSew, render:renderSewView },
+};
+
+function resumeActiveTimerJob(kind, remainingSec){
+  const def = ACTIVE_JOB_DEFS[kind];
+  def.setActive(true);
+  def.setSeconds(Math.max(1, Math.ceil(remainingSec)));
+  def.render();
+  updateBusyBanner();
+  def.clearHandle();
+  def.setHandle(setInterval(() => {
+    def.setSeconds(def.getSeconds() - 1);
+    const el = document.getElementById(def.timerElId);
+    if (el) el.textContent = formatTime(def.getSeconds());
+    updateBusyBanner();
+    if (def.getSeconds() <= 0){
+      def.clearHandle();
+      def.finish();
+    }
+  }, 1000));
+}
+
+function resolveActiveJobOnLoad(){
+  const job = state.player.activeJob;
+  if (!job) return;
+  const def = ACTIVE_JOB_DEFS[job.kind];
+  if (!def){ state.player.activeJob = null; return; }
+  if (def.setTarget) def.setTarget(job.targetId);
+  const remainingSec = job.durationSec - (Date.now() - job.startedAt) / 1000;
+  if (remainingSec <= 0){
+    def.finish(); // сам обнулит state.player.activeJob через endActiveJob()
+    toast("Пока вас не было — работа завершилась, ресурсы уже в инвентаре.");
+  } else {
+    resumeActiveTimerJob(job.kind, remainingSec);
+  }
 }
 
 /* ===== Пассивная регенерация HP (вне боя, реальное время) ===== */

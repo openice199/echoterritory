@@ -146,6 +146,7 @@
       },
       arenaPoints: 0, arenaRep: 0, arenaWins: 0, arenaLosses: 0,
       territoryTokens: 0, territoryRep: 0, territoryClaimedToday: false,
+      activeJob: null,
       healSlotUnlocked: false,
       combatSlots: ["medkit", "bandage", null, null],
       energy: 100, maxEnergy: 100,
@@ -195,6 +196,10 @@
     const saved = await loadSave();
     if (applySave(saved)){
       toast(`С возвращением, ${state.player.name}!`);
+      if (typeof resolveActiveJobOnLoad === "function"){
+        resolveActiveJobOnLoad();
+        saveNow(); // сразу фиксируем итог (докрученный таймер или готовые ресурсы), чтобы сервер не слал повторное уведомление
+      }
     } else {
       startFresh();
       toast(`Добро пожаловать в Химер-Сити, ${displayName}!`);

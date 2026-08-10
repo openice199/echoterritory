@@ -13,6 +13,7 @@ const {
 const { setupRealtime } = require("./realtime");
 const { fighterFromState, simulateDuel } = require("./combat");
 const { DISTRICT_TAX, WAR_PREP_MS, WAR_DECLARE_COST, startWarSweep } = require("./territory");
+const { startJobNotifySweep } = require("./jobs");
 
 const PORT = process.env.PORT || 8430;
 const BOT_TOKEN = process.env.BOT_TOKEN || "";
@@ -306,6 +307,7 @@ app.use(express.static(path.join(__dirname, "..", "web")));
 const httpServer = http.createServer(app);
 const io = setupRealtime(httpServer, { botToken: BOT_TOKEN, allowDevAuth: ALLOW_DEV_AUTH });
 startWarSweep(io);
+startJobNotifySweep(BOT_TOKEN);
 
 httpServer.listen(PORT, () => {
   console.log(`Territory 2026 server on http://localhost:${PORT} (dev auth: ${ALLOW_DEV_AUTH})`);
