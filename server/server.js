@@ -290,6 +290,15 @@ app.post("/api/admin/reset", requireAdmin, async (req, res) => {
   await deletePlayer(telegramId);
   res.json({ ok: true });
 });
+app.post("/api/admin/grant-money", requireAdmin, async (req, res) => {
+  const { telegramId, amount } = req.body || {};
+  if (!telegramId || !amount) return res.status(400).json({ error: "telegramId and amount required" });
+  const saved = await loadPlayer(telegramId);
+  if (!saved) return res.status(404).json({ error: "not found" });
+  saved.state.player.rub = (saved.state.player.rub || 0) + Number(amount);
+  await savePlayer(telegramId, null, saved.state);
+  res.json({ ok: true, rub: saved.state.player.rub });
+});
 
 // Отдаём статику игры тем же сервером — один процесс, один деплой.
 app.use(express.static(path.join(__dirname, "..", "web")));
