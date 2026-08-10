@@ -2122,22 +2122,27 @@ function findLocation(id){
   return null;
 }
 
+function isDistrictUnlocked(d){
+  return d.unlocked || state.player.level >= d.lvlMin;
+}
+
 async function renderMap(){
   const grid = document.getElementById("districtGrid");
   await refreshTerritoryOwners();
   grid.innerHTML = "";
   districts.forEach(d => {
     const owner = territoryOwners[d.id];
+    const unlocked = isDistrictUnlocked(d);
     const div = document.createElement("div");
     div.dataset.locId = d.id;
-    div.className = "district-card" + (d.id===currentDistrictId?" current":"") + (!d.unlocked?" locked":"");
+    div.className = "district-card" + (d.id===currentDistrictId?" current":"") + (!unlocked?" locked":"");
     div.innerHTML = `
       ${owner?`<span class="territory-strip" style="background:${owner.color}"></span>`:""}
       ${owner?`<span class="territory-badge" style="border-color:${owner.color}">${owner.icon} ${owner.tag}</span>`:""}
-      ${!d.unlocked?'<span class="lock-icon">🔒</span>':""}
+      ${!unlocked?'<span class="lock-icon">🔒</span>':""}
       <div class="dn">${d.name}</div><div class="dl">Уровень: ${d.level}</div>`;
     div.addEventListener("click", () => {
-      if (!d.unlocked){ toast(`Район заблокирован. Доступен с уровня ${d.level.split(" ")[0]}`); return; }
+      if (!unlocked){ toast(`Район заблокирован. Доступен с уровня ${d.level.split(" ")[0]}`); return; }
       selectDistrict(d.id);
     });
     grid.appendChild(div);
