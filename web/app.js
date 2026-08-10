@@ -827,7 +827,7 @@ function renderAuctionMine(){
   const sellable = state.inventory.filter(i => i.count > 0 && i.cat !== "material");
   if (auctionSellItemId){
     const item = findItem(auctionSellItemId);
-    if (!item){ auctionSellItemId = null; renderAuctionMine(); return; }
+    if (!item || item.count <= 0){ auctionSellItemId = null; renderAuctionMine(); return; }
     const refValue = estimateItemValue(item);
     picker.innerHTML = `
       <p class="dim" style="margin:0 0 4px;">${iconHtml(item.icon)} ${item.name} (у вас: ${item.count})</p>
@@ -897,6 +897,12 @@ function auctionSellChance(price, refValue){
 }
 
 function listItemForSale(item, price){
+  if (!item || item.count <= 0){
+    toast("Этого предмета уже нет в инвентаре");
+    auctionSellItemId = null;
+    renderAuctionMine();
+    return;
+  }
   item.count--;
   if (item.count <= 0){
     state.inventory = state.inventory.filter(x => x !== item);
@@ -2600,7 +2606,7 @@ function renderInvDetail(){
   let actions = "";
   if (item.energyRestore) actions += `<button class="btn primary small" id="invUseBtn">Съесть</button>`;
   else if (item.buffPercent) actions += `<button class="btn primary small" id="invUseBtn">Выпить</button>`;
-  if (item.cat !== "material") actions += `<button class="btn ghost small" id="invSellBtn">На аукцион</button>`;
+  if (item.cat !== "material" && item.count > 0) actions += `<button class="btn ghost small" id="invSellBtn">На аукцион</button>`;
   actions += `<button class="btn ghost small" id="invDropBtn">Выбросить</button>`;
   box.innerHTML = `
     <div class="card">

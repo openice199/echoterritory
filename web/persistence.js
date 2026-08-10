@@ -169,7 +169,13 @@
   function applySave(saved){
     if (!saved || saved.isNew || !saved.state) return false;
     Object.assign(state.player, saved.state.player || {});
-    if (Array.isArray(saved.state.inventory)) state.inventory = saved.state.inventory;
+    if (Array.isArray(saved.state.inventory)){
+      // Раньше несколько мест (расходники в бою, реагенты крафта) списывали count до 0,
+      // не убирая сам предмет из инвентаря — такие "призрачные" карточки могли уже
+      // осесть в старых сохранениях (и их даже можно было выставить на аукцион и
+      // получить деньги ни за что). Чистим их при каждой загрузке на всякий случай.
+      state.inventory = saved.state.inventory.filter(i => i.count > 0);
+    }
     if (saved.state.capacity) Object.assign(state.capacity, saved.state.capacity);
     if (saved.state.market) state.market = saved.state.market;
     // currentDistrictId — отдельная переменная в app.js (используется картой, travel-кнопкой
