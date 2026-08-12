@@ -2189,7 +2189,6 @@ function renderHome(){
   document.getElementById("shop-rub").textContent = p.rub.toLocaleString("ru-RU");
   document.getElementById("shop-stars").textContent = p.stars;
   document.getElementById("p-avatar-lvl").textContent = p.level;
-  document.getElementById("p-avatar-ring").style.background = `conic-gradient(var(--gold) 0 ${Math.round((p.exp/p.maxExp)*100)}%, var(--card-border) ${Math.round((p.exp/p.maxExp)*100)}% 100%)`;
   const fd = districts.find(x => x.name === p.district);
   if (fd){
     document.getElementById("districtFlavorName").textContent = fd.name;

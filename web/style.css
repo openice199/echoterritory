@@ -94,6 +94,11 @@ body{
 
 /* Profile card */
 .profile-card{display:flex;gap:12px;}
+.profile-avatar{
+  position:relative;width:100px;flex:0 0 100px;align-self:stretch;
+  border-radius:10px;overflow:hidden;background:#241D13;border:1px solid var(--card-border);
+}
+.profile-avatar img{width:100%;height:100%;object-fit:cover;display:block;}
 .avatar-ring{
   position:relative;width:64px;height:64px;flex:0 0 64px;border-radius:50%;
   background:conic-gradient(var(--gold) 0 48%, var(--card-border) 48% 100%);
