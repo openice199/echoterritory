@@ -6,12 +6,11 @@ const { validateInitData } = require("./telegramAuth");
 const {
   loadPlayer, savePlayer, listPlayers, deletePlayer,
   listClans, getClan, getClanForPlayer, createClan, joinClan, leaveClan, tryDeductRub,
-  listArenaOpponents, applyArenaOutcome, getShieldUntil,
+  listArenaOpponents,
   listTerritories, getTerritoryOwner, getActiveWarForDistrict, getActiveWarForClan,
   getWar, createWar, joinWarRoster, collectClanTax,
 } = require("./db");
 const { setupRealtime } = require("./realtime");
-const { fighterFromState, simulateDuel } = require("./combat");
 const { DISTRICT_TAX, WAR_PREP_MS, WAR_DECLARE_COST, startWarSweep } = require("./territory");
 const { startJobNotifySweep } = require("./jobs");
 
@@ -149,9 +148,9 @@ app.post("/api/clans/:id/leave", authenticate, async (req, res) => {
   }
 });
 
-/* ===== Арена: асинхронный PvP против реальных сохранённых персонажей =====
-   Бой разрешается мгновенно на сервере тем же симулятором, что и войны за
-   территорию — обе стороны не обязаны быть в сети одновременно. */
+/* ===== Арена: список соперников (сам бой теперь живой, пошаговый — через
+   Socket.IO события arena_challenge/arena_turn_choice/... в server/liveArena.js,
+   не REST). */
 app.get("/api/arena/opponents", authenticate, async (req, res) => {
   try {
     const list = await listArenaOpponents(req.telegramId, 30);
@@ -165,25 +164,6 @@ app.get("/api/arena/opponents", authenticate, async (req, res) => {
     })));
   } catch (e) {
     console.error("arena opponents failed:", e);
-    res.status(500).json({ error: "failed" });
-  }
-});
-
-app.post("/api/arena/challenge", authenticate, async (req, res) => {
-  const { opponentTelegramId } = req.body || {};
-  if (!opponentTelegramId) return res.status(400).json({ error: "opponentTelegramId required" });
-  if (opponentTelegramId === req.telegramId) return res.status(400).json({ error: "cannot challenge yourself" });
-  try {
-    const shieldUntil = await getShieldUntil(opponentTelegramId);
-    if (shieldUntil && shieldUntil > Date.now()) return res.status(403).json({ error: "shielded" });
-    const challengerSaved = await loadPlayer(req.telegramId);
-    const opponentSaved = await loadPlayer(opponentTelegramId);
-    if (!challengerSaved || !opponentSaved) return res.status(404).json({ error: "player not found" });
-    const duel = simulateDuel(fighterFromState(challengerSaved.state), fighterFromState(opponentSaved.state));
-    await applyArenaOutcome(req.telegramId, opponentTelegramId, duel.aWins);
-    res.json({ ok: true, won: duel.aWins, rounds: duel.rounds, opponentName: opponentSaved.state.player.name });
-  } catch (e) {
-    console.error("arena challenge failed:", e);
     res.status(500).json({ error: "failed" });
   }
 });

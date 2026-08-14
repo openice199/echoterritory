@@ -1,6 +1,7 @@
 const { Server } = require("socket.io");
 const { validateInitData } = require("./telegramAuth");
 const { getChatHistory, saveChatMessage } = require("./db");
+const { attachLiveArena } = require("./liveArena");
 
 // room = либо id района ("vokzal"), либо "clan:<id>" для кланового чата.
 function setupRealtime(httpServer, { botToken, allowDevAuth }) {
@@ -42,6 +43,8 @@ function setupRealtime(httpServer, { botToken, allowDevAuth }) {
     socket.telegramId = identity.telegramId;
     socket.name = identity.name;
     let currentRoom = null;
+
+    attachLiveArena(io, socket, { botToken });
 
     function leaveCurrent() {
       if (!currentRoom) return;

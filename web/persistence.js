@@ -70,7 +70,18 @@
       window.chatState.presence = list;
       if (onChatUpdate) onChatUpdate();
     });
+
+    // ===== Живая арена: сервер решает раунды, клиент только шлёт выбор зон =====
+    ["arena_challenge_incoming","arena_challenge_sent","arena_challenge_declined",
+     "arena_challenge_timeout","arena_challenge_error","arena_battle_start",
+     "arena_opponent_ready","arena_round_result","arena_battle_end"].forEach((evt) => {
+      socket.on(evt, (data) => { if (onArenaEvent) onArenaEvent(evt, data); });
+    });
   }
+
+  window.arenaEmit = function(event, payload){ if (socket) socket.emit(event, payload); };
+  let onArenaEvent = null;
+  window.setOnArenaEvent = function(cb){ onArenaEvent = cb; };
 
   window.setOnChatUpdate = function(cb){ onChatUpdate = cb; };
   window.joinChatRoom = function(room){
@@ -217,6 +228,9 @@
     connectSocket();
     window.setOnChatUpdate(() => {
       if (typeof renderChatTab === "function" && typeof chatTabActive !== "undefined") renderChatTab(chatTabActive);
+    });
+    window.setOnArenaEvent((evt, data) => {
+      if (typeof handleArenaEvent === "function") handleArenaEvent(evt, data);
     });
     const saved = await loadSave();
     if (applySave(saved)){

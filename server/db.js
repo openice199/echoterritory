@@ -305,6 +305,40 @@ async function applyArenaOutcome(challengerId, opponentId, challengerWon) {
   }
 }
 
+// Живой раундовый PvP на арене: в отличие от applyArenaOutcome (там всегда
+// обновлялась только сторона того, кто вызвал challenge), тут оба участника —
+// реальные игроки в бою, так что награда/штраф применяются обоим.
+async function applyLiveArenaResult(winnerId, loserId) {
+  await ready;
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const wRes = await client.query("SELECT state_json FROM players WHERE telegram_id=$1 FOR UPDATE", [winnerId]);
+    const lRes = await client.query("SELECT state_json FROM players WHERE telegram_id=$1 FOR UPDATE", [loserId]);
+    if (!wRes.rows.length || !lRes.rows.length) { await client.query("ROLLBACK"); return null; }
+    const now = Date.now();
+    const wState = wRes.rows[0].state_json;
+    const lState = lRes.rows[0].state_json;
+    const wp = wState.player, lp = lState.player;
+    wp.arenaPoints = (wp.arenaPoints || 0) + 15;
+    wp.arenaRep = (wp.arenaRep || 0) + 15;
+    wp.arenaWins = (wp.arenaWins || 0) + 1;
+    lp.arenaPoints = (lp.arenaPoints || 0) + 5;
+    lp.arenaRep = (lp.arenaRep || 0) + 5;
+    lp.arenaLosses = (lp.arenaLosses || 0) + 1;
+    lp.hp = Math.round((lp.maxHp || 100) * 0.3);
+    await client.query("UPDATE players SET state_json=$1, updated_at=$2 WHERE telegram_id=$3", [JSON.stringify(wState), now, winnerId]);
+    await client.query("UPDATE players SET state_json=$1, shield_until=$2, updated_at=$3 WHERE telegram_id=$4", [JSON.stringify(lState), now + 10 * 60 * 1000, now, loserId]);
+    await client.query("COMMIT");
+    return { winnerState: wState, loserState: lState };
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
 /* ===== Территории и войны за улицы ===== */
 async function listTerritories() {
   await ready;
@@ -456,7 +490,7 @@ module.exports = {
   loadPlayer, savePlayer, listPlayers, deletePlayer,
   listClans, getClan, getClanForPlayer, createClan, joinClan, leaveClan,
   getChatHistory, saveChatMessage, tryDeductRub,
-  listArenaOpponents, applyArenaOutcome, getShieldUntil,
+  listArenaOpponents, applyArenaOutcome, applyLiveArenaResult, getShieldUntil,
   listTerritories, getTerritoryOwner, setTerritoryOwner,
   getActiveWarForDistrict, getActiveWarForClan, getWar, createWar, joinWarRoster,
   getExpiredWars, resolveWarRow, collectClanTax,

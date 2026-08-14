@@ -103,4 +103,4 @@ function simulateDuel(a, b) {
   return { aWins: hpA >= hpB, hpA: Math.max(0, hpA), hpB: Math.max(0, hpB), maxHpA, maxHpB, rounds };
 }
 
-module.exports = { fighterFromState, simulateDuel, effectiveStats, ZONES };
+module.exports = { fighterFromState, simulateDuel, effectiveStats, computeDamage, ZONES };

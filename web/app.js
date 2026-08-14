@@ -174,9 +174,10 @@ const professionSpots = [
 function isBusy(){
   return workState === "running" || fishingActive || cookingActive || gatherActive || brewActive ||
     seaweedActive || potionBrewActive || scrapActive || forgeActive || gemActive || setActive ||
-    fabricActive || sewActive;
+    fabricActive || sewActive || !!liveArenaBattleId;
 }
 function busyLabel(){
+  if (liveArenaBattleId) return "бой на арене";
   if (workState === "running") return "работа на локации";
   if (fishingActive) return "рыбалка";
   if (cookingActive) return "готовка";
@@ -536,6 +537,7 @@ function renderBattleSlots(){
 
 function useCombatSlot(idx){
   if (battleOver) return;
+  if (battleMode === "livearena"){ toast("Расходники пока недоступны в бою на арене"); return; }
   if (idx === 3 && !state.player.healSlotUnlocked){ toast("Слот открывается на 20 репутации Echo Territory (см. Достижения)"); return; }
   const itemId = state.player.combatSlots[idx];
   if (!itemId){ toast("Слот пуст — настройте боевой набор в Инвентаре"); return; }
@@ -1704,6 +1706,192 @@ function arenaNextRank(rep){
 
 let arenaView = "list";
 
+/* ===== Живая арена (реальный пошаговый бой через сокет) ===== */
+let incomingArenaChallenge = null; // {challengeId, challengerId, challengerName}
+let outgoingChallengeId = null;
+let outgoingChallengeOpponentName = null;
+let liveArenaBattleId = null;
+let liveArenaOppName = "";
+let liveArenaSelfHp = 0, liveArenaSelfMaxHp = 0, liveArenaOppHp = 0, liveArenaOppMaxHp = 0;
+let liveArenaSubmitted = false;
+
+function updateArenaChallengeBanner(){
+  const banner = document.getElementById("arenaChallengeBanner");
+  if (!banner) return;
+  if (incomingArenaChallenge){
+    banner.classList.remove("hidden");
+    banner.innerHTML = `
+      <div class="card-title" style="margin:0 0 6px;">⚔️ Вас вызвали на арену!</div>
+      <div class="dim" style="margin-bottom:10px;">${incomingArenaChallenge.challengerName} хочет сразиться с вами.</div>
+      <div class="row-between" style="gap:8px;">
+        <button class="btn ghost" id="arenaDeclineBtn">Отклонить</button>
+        <button class="btn primary" id="arenaAcceptBtn">Принять бой</button>
+      </div>
+    `;
+    document.getElementById("arenaAcceptBtn").addEventListener("click", () => respondToArenaChallenge(true));
+    document.getElementById("arenaDeclineBtn").addEventListener("click", () => respondToArenaChallenge(false));
+  } else if (outgoingChallengeId){
+    banner.classList.remove("hidden");
+    banner.innerHTML = `<div class="dim">⏳ Вызов отправлен игроку ${outgoingChallengeOpponentName} — ждём ответа…</div>`;
+  } else {
+    banner.classList.add("hidden");
+  }
+}
+
+function respondToArenaChallenge(accept){
+  if (!incomingArenaChallenge) return;
+  window.arenaEmit("arena_challenge_respond", { challengeId: incomingArenaChallenge.challengeId, accept });
+  incomingArenaChallenge = null;
+  updateArenaChallengeBanner();
+}
+
+const ARENA_ERROR_MESSAGES = {
+  shielded: "Соперник под щитом",
+  "already in a battle": "Вы уже в бою",
+  "challenge already pending": "У вас уже есть отправленный вызов",
+  "opponent is busy": "Соперник сейчас занят",
+  "player not found": "Игрок не найден",
+  "invalid opponent": "Некорректный соперник",
+};
+
+function handleArenaEvent(evt, data){
+  if (evt === "arena_challenge_incoming"){
+    incomingArenaChallenge = data;
+    toast(`⚔️ ${data.challengerName} вызывает вас на арену!`);
+    updateArenaChallengeBanner();
+  } else if (evt === "arena_challenge_sent"){
+    outgoingChallengeId = data.challengeId;
+    updateArenaChallengeBanner();
+  } else if (evt === "arena_challenge_declined"){
+    if (outgoingChallengeId === data.challengeId){ outgoingChallengeId = null; outgoingChallengeOpponentName = null; }
+    toast("Соперник отклонил вызов");
+    updateArenaChallengeBanner();
+  } else if (evt === "arena_challenge_timeout"){
+    if (outgoingChallengeId === data.challengeId){ outgoingChallengeId = null; outgoingChallengeOpponentName = null; }
+    toast("Соперник не ответил вовремя");
+    updateArenaChallengeBanner();
+  } else if (evt === "arena_challenge_error"){
+    outgoingChallengeId = null; outgoingChallengeOpponentName = null;
+    toast(ARENA_ERROR_MESSAGES[data.error] || "Не удалось вызвать на арену");
+    updateArenaChallengeBanner();
+  } else if (evt === "arena_battle_start"){
+    outgoingChallengeId = null; outgoingChallengeOpponentName = null; incomingArenaChallenge = null;
+    updateArenaChallengeBanner();
+    enterLiveArenaBattle(data);
+  } else if (evt === "arena_opponent_ready"){
+    if (battleMode === "livearena" && liveArenaBattleId === data.battleId){
+      const hint = document.getElementById("battleLog");
+      if (hint) logLine("Соперник уже сделал выбор — ждём вас!");
+    }
+  } else if (evt === "arena_round_result"){
+    applyLiveArenaRoundResult(data);
+  } else if (evt === "arena_battle_end"){
+    finishLiveArenaBattle(data);
+  }
+}
+
+function enterLiveArenaBattle(data){
+  battleMode = "livearena";
+  liveArenaBattleId = data.battleId;
+  liveArenaOppName = data.oppName;
+  liveArenaSelfHp = data.selfHp; liveArenaSelfMaxHp = data.selfMaxHp;
+  liveArenaOppHp = data.oppHp; liveArenaOppMaxHp = data.oppMaxHp;
+  liveArenaSubmitted = false;
+  selAttack = null; selBlock = null;
+  battleOver = false;
+
+  screenStack.push("battle");
+  document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+  document.querySelector('.screen[data-screen="battle"]').classList.add("active");
+  document.getElementById("screenTitle").textContent = `Арена: ${liveArenaOppName}`;
+  document.getElementById("backBtn").classList.remove("hidden");
+  document.getElementById("menuBtn").classList.add("hidden");
+  document.querySelectorAll(".nav-btn").forEach(b => b.classList.remove("active"));
+  document.getElementById("battleSelectView").classList.add("hidden");
+  document.getElementById("battleFightView").classList.remove("hidden");
+  document.getElementById("battleActiveArea").classList.remove("hidden");
+  document.getElementById("battleResult").classList.add("hidden");
+  document.getElementById("battleLog").innerHTML = "";
+  logLine(`Бой начался против ${liveArenaOppName}!`);
+  renderBattle();
+}
+
+function renderLiveArenaBattleUI(){
+  document.getElementById("enemyName").textContent = liveArenaOppName;
+  document.getElementById("enemyLevel").textContent = "";
+  document.getElementById("enemy-hp-text").textContent = `${Math.max(0,liveArenaOppHp)} / ${liveArenaOppMaxHp}`;
+  document.getElementById("enemy-hp-bar").style.width = `${Math.max(0,(liveArenaOppHp/liveArenaOppMaxHp)*100)}%`;
+  document.getElementById("battle-p-hp-text").textContent = `${Math.max(0,liveArenaSelfHp)} / ${liveArenaSelfMaxHp}`;
+  document.getElementById("battle-p-hp-bar").style.width = `${Math.max(0,(liveArenaSelfHp/liveArenaSelfMaxHp)*100)}%`;
+  document.querySelectorAll('.zone-grid[data-group="attack"] .zone-btn').forEach(b => b.classList.toggle("selected", b.dataset.zone===selAttack));
+  document.querySelectorAll('.zone-grid[data-group="block"] .zone-btn').forEach(b => b.classList.toggle("selected", b.dataset.zone===selBlock));
+  const endBtn = document.getElementById("endTurnBtn");
+  if (endBtn){
+    endBtn.textContent = liveArenaSubmitted ? "ЖДЁМ СОПЕРНИКА…" : "ЗАВЕРШИТЬ ХОД";
+    endBtn.disabled = liveArenaSubmitted;
+  }
+}
+
+function submitLiveArenaTurn(){
+  if (!liveArenaBattleId || liveArenaSubmitted) return;
+  const zone = selAttack || ["head","chest","belly","legs"][Math.floor(Math.random()*4)];
+  const block = selBlock || ["head","chest","belly","legs"][Math.floor(Math.random()*4)];
+  liveArenaSubmitted = true;
+  window.arenaEmit("arena_turn_choice", { battleId: liveArenaBattleId, zone, block });
+  logLine(`Вы выбрали: удар в ${zoneLabel[zone]}, блок ${zoneLabel[block]}. Ждём соперника…`);
+  renderBattle();
+}
+
+function applyLiveArenaRoundResult(data){
+  if (battleMode !== "livearena" || data.battleId !== liveArenaBattleId) return;
+  liveArenaSelfHp = data.selfHp;
+  liveArenaOppHp = data.oppHp;
+  liveArenaSubmitted = false;
+  selAttack = null; selBlock = null;
+
+  if (data.selfAtk){
+    if (data.selfAtk.dodged) logLine(`${liveArenaOppName} увернулся от вашего удара!`, "you");
+    else logLine(`Ваш удар в ${zoneLabel[data.selfAtk.zone]}. ${data.selfAtk.crit?"Крит! ":""}Урон ${data.selfAtk.dmg}`, data.selfAtk.crit?"crit":"you");
+  }
+  if (data.oppAtk){
+    if (data.oppAtk.dodged) logLine(`Вы увернулись от удара ${liveArenaOppName}!`, "hit");
+    else logLine(`${liveArenaOppName} бьёт в ${zoneLabel[data.oppAtk.zone]}. ${data.oppAtk.crit?"Крит! ":""}Урон ${data.oppAtk.dmg}`, data.oppAtk.crit?"crit":"hit");
+  }
+  renderBattle();
+}
+
+async function finishLiveArenaBattle(data){
+  const wasActive = battleMode === "livearena" && liveArenaBattleId === data.battleId;
+  battleOver = true;
+  liveArenaBattleId = null;
+  battleMode = "pve";
+
+  const savedLoaded = await apiFetch("/api/load");
+  if (savedLoaded && !savedLoaded.isNew){ Object.assign(state.player, savedLoaded.state.player || {}); }
+  renderHome();
+  if (data.won) bumpQuestProgress("arenaWin", 1);
+
+  if (!wasActive){
+    toast(data.won ? `Победа над ${data.oppName} на арене!` : `Поражение от ${data.oppName} на арене`);
+    return;
+  }
+
+  document.getElementById("battleActiveArea").classList.add("hidden");
+  const resultBox = document.getElementById("battleResult");
+  resultBox.classList.remove("hidden");
+  const chips = data.won
+    ? `<span class="br-chip">🏆 +15 очков арены</span><span class="br-chip">⭐ +15 репутации</span><span class="br-chip">🛡 щит сопернику на 10 мин</span>`
+    : `<span class="br-chip">🥊 +5 очков арены</span>`;
+  resultBox.className = "battle-result " + (data.won ? "win" : "lose");
+  resultBox.innerHTML = `
+    <div class="br-icon">${data.won?"🏆":"💀"}</div>
+    <div class="br-title">${data.won?"Победа":"Поражение"}</div>
+    <div class="br-sub">${data.oppName}</div>
+    <div class="br-rewards">${chips}</div>
+    <button class="btn primary full" id="battleContinueBtn">ВЕРНУТЬСЯ НА АРЕНУ</button>`;
+  document.getElementById("battleContinueBtn").addEventListener("click", () => showScreen("arena"));
+}
+
 function renderArena(){
   const root = document.getElementById("arenaRoot");
   const p = state.player;
@@ -1791,54 +1979,14 @@ async function renderArenaList(){
   });
 }
 
-async function challengeOpponent(opponent){
+function challengeOpponent(opponent){
   if (isBusy()){ toast(`Вы заняты (${busyLabel()}) — нельзя вызвать на арену`); return; }
+  if (outgoingChallengeId){ toast("Вы уже ждёте ответа на другой вызов"); return; }
+  if (incomingArenaChallenge){ toast("Сначала ответьте на входящий вызов"); return; }
+  outgoingChallengeOpponentName = opponent.name;
+  window.arenaEmit("arena_challenge", { opponentTelegramId: opponent.telegramId, opponentName: state.player.name });
   toast(`Вызов отправлен игроку ${opponent.name}…`);
-  let result;
-  try {
-    result = await apiFetch("/api/arena/challenge", { method:"POST", body: JSON.stringify({ opponentTelegramId: opponent.telegramId }) });
-  } catch (e) {
-    toast(e.data?.error === "shielded" ? "Соперник под щитом" : "Не удалось начать бой");
-    return;
-  }
-  const savedLoaded = await apiFetch("/api/load");
-  if (savedLoaded && !savedLoaded.isNew){
-    Object.assign(state.player, savedLoaded.state.player || {});
-  }
-  renderHome();
-
-  screenStack.push("battle");
-  document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
-  document.querySelector('.screen[data-screen="battle"]').classList.add("active");
-  document.getElementById("screenTitle").textContent = `Арена: ${opponent.name}`;
-  document.getElementById("backBtn").classList.remove("hidden");
-  document.getElementById("menuBtn").classList.add("hidden");
-  document.querySelectorAll(".nav-btn").forEach(b => b.classList.remove("active"));
-  document.getElementById("battleSelectView").classList.add("hidden");
-  document.getElementById("battleFightView").classList.remove("hidden");
-  document.getElementById("battleActiveArea").classList.add("hidden");
-  document.getElementById("battleLog").innerHTML = "";
-  document.getElementById("enemyName").textContent = opponent.name;
-  document.getElementById("enemyLevel").textContent = opponent.level;
-  document.getElementById("enemy-hp-text").textContent = result.won ? "0 / 100" : "100 / 100";
-  document.getElementById("enemy-hp-bar").style.width = result.won ? "0%" : "100%";
-  document.getElementById("battle-p-hp-text").textContent = `${state.player.hp} / ${state.player.maxHp}`;
-  document.getElementById("battle-p-hp-bar").style.width = `${Math.max(0,(state.player.hp/state.player.maxHp)*100)}%`;
-
-  if (result.won) bumpQuestProgress("arenaWin", 1);
-  const resultBox = document.getElementById("battleResult");
-  resultBox.classList.remove("hidden");
-  const chips = result.won
-    ? `<span class="br-chip">🏆 +15 очков арены</span><span class="br-chip">⭐ +15 репутации</span><span class="br-chip">🛡 щит сопернику на 10 мин</span>`
-    : `<span class="br-chip">🥊 +5 очков арены</span>`;
-  resultBox.className = "battle-result " + (result.won ? "win" : "lose");
-  resultBox.innerHTML = `
-    <div class="br-icon">${result.won?"🏆":"💀"}</div>
-    <div class="br-title">${result.won?"Победа":"Поражение"}</div>
-    <div class="br-sub">${opponent.name} · дуэль решена за ${result.rounds} раунд(ов)</div>
-    <div class="br-rewards">${chips}</div>
-    <button class="btn primary full" id="battleContinueBtn">ВЕРНУТЬСЯ НА АРЕНУ</button>`;
-  document.getElementById("battleContinueBtn").addEventListener("click", () => showScreen("arena"));
+  updateArenaChallengeBanner();
 }
 
 function renderArenaShop(){
@@ -2196,6 +2344,7 @@ function renderHome(){
   }
   updateBusyBanner();
   updateClanTaxBanner();
+  updateArenaChallengeBanner();
 }
 
 function updateClanTaxBanner(){
@@ -4506,6 +4655,7 @@ function startBattle(mode, opponent){
   startTurnTimer();
 }
 function renderBattle(){
+  if (battleMode === "livearena"){ renderLiveArenaBattleUI(); return; }
   document.getElementById("enemyName").textContent = enemy.name;
   document.getElementById("enemyLevel").textContent = enemy.level;
   document.getElementById("enemy-hp-text").textContent = `${Math.max(0,enemy.hp)} / ${enemy.maxHp}`;
@@ -4515,14 +4665,22 @@ function renderBattle(){
   document.getElementById("battle-p-hp-bar").style.width = `${Math.max(0,(p.hp/p.maxHp)*100)}%`;
   document.querySelectorAll('.zone-grid[data-group="attack"] .zone-btn').forEach(b => b.classList.toggle("selected", b.dataset.zone===selAttack));
   document.querySelectorAll('.zone-grid[data-group="block"] .zone-btn').forEach(b => b.classList.toggle("selected", b.dataset.zone===selBlock));
+  const endBtn = document.getElementById("endTurnBtn");
+  if (endBtn){ endBtn.textContent = "ЗАВЕРШИТЬ ХОД"; endBtn.disabled = false; }
   renderBattleSlots();
 }
 
 document.querySelectorAll('.zone-grid[data-group="attack"] .zone-btn').forEach(b => {
-  b.addEventListener("click", () => { selAttack = b.dataset.zone; renderBattle(); });
+  b.addEventListener("click", () => {
+    if (battleMode === "livearena" && liveArenaSubmitted) return;
+    selAttack = b.dataset.zone; renderBattle();
+  });
 });
 document.querySelectorAll('.zone-grid[data-group="block"] .zone-btn').forEach(b => {
-  b.addEventListener("click", () => { selBlock = b.dataset.zone; renderBattle(); });
+  b.addEventListener("click", () => {
+    if (battleMode === "livearena" && liveArenaSubmitted) return;
+    selBlock = b.dataset.zone; renderBattle();
+  });
 });
 
 function logLine(text, cls){
@@ -4550,6 +4708,7 @@ function startTurnTimer(){
 
 document.getElementById("endTurnBtn").addEventListener("click", () => {
   if (battleOver) return;
+  if (battleMode === "livearena"){ submitLiveArenaTurn(); return; }
   clearInterval(turnTimerHandle);
   resolveTurn();
 });
