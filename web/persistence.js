@@ -71,6 +71,13 @@
       if (onChatUpdate) onChatUpdate();
     });
 
+    // Сколько разных игроков сейчас в сети — по всем локациям сразу, не только в текущей.
+    window.onlineCount = 0;
+    socket.on("online_count", (count) => {
+      window.onlineCount = count;
+      if (typeof updateOnlineBadge === "function") updateOnlineBadge();
+    });
+
     // ===== Живая арена: сервер решает раунды, клиент только шлёт выбор зон =====
     ["arena_challenge_incoming","arena_challenge_sent","arena_challenge_declined",
      "arena_challenge_timeout","arena_challenge_error","arena_battle_start",

@@ -209,6 +209,15 @@ function busySecondsLeft(){
   if (sewActive) return sewSecondsLeft;
   return 0;
 }
+function updateOnlineBadge(){
+  const badge = document.getElementById("onlineCountBadge");
+  if (!badge) return;
+  const count = window.onlineCount || 0;
+  if (count <= 0){ badge.classList.add("hidden"); return; }
+  badge.classList.remove("hidden");
+  badge.textContent = `🟢 ${count}`;
+}
+
 function updateBusyBanner(){
   const banner = document.getElementById("homeBusyBanner");
   if (!banner) return;

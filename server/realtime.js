@@ -7,6 +7,11 @@ const { attachLiveArena } = require("./liveArena");
 function setupRealtime(httpServer, { botToken, allowDevAuth }) {
   const io = new Server(httpServer, { cors: { origin: "*" } });
   const presence = new Map(); // room -> Map(socket.id -> {telegramId, name})
+  const onlineSocketsByPlayer = new Map(); // telegramId -> Set<socket.id> — сколько разных игроков сейчас в сети, по всем локациям сразу
+
+  function broadcastOnlineCount() {
+    io.emit("online_count", onlineSocketsByPlayer.size);
+  }
 
   function authFromHandshake(auth) {
     if (auth && auth.initData) {
@@ -45,6 +50,13 @@ function setupRealtime(httpServer, { botToken, allowDevAuth }) {
     let currentRoom = null;
 
     attachLiveArena(io, socket, { botToken });
+
+    if (!onlineSocketsByPlayer.has(socket.telegramId)) onlineSocketsByPlayer.set(socket.telegramId, new Set());
+    const playerSockets = onlineSocketsByPlayer.get(socket.telegramId);
+    const isNewOnlinePlayer = playerSockets.size === 0;
+    playerSockets.add(socket.id);
+    socket.emit("online_count", onlineSocketsByPlayer.size);
+    if (isNewOnlinePlayer) broadcastOnlineCount();
 
     function leaveCurrent() {
       if (!currentRoom) return;
@@ -89,7 +101,17 @@ function setupRealtime(httpServer, { botToken, allowDevAuth }) {
       }
     });
 
-    socket.on("disconnect", () => leaveCurrent());
+    socket.on("disconnect", () => {
+      leaveCurrent();
+      const set = onlineSocketsByPlayer.get(socket.telegramId);
+      if (set) {
+        set.delete(socket.id);
+        if (!set.size) {
+          onlineSocketsByPlayer.delete(socket.telegramId);
+          broadcastOnlineCount();
+        }
+      }
+    });
   });
 
   return io;
