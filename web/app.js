@@ -1458,7 +1458,7 @@ function changeNickname(){
   if (name.length < 2){ toast("Ник должен быть не короче 2 символов"); return; }
   if (name.length > 20){ toast("Ник слишком длинный"); return; }
   const p = state.player;
-  const free = p.nameChangesUsed === 0;
+  const free = !(p.nameChangesUsed > 0);
   if (!free && p.stars < NAME_CHANGE_COST_STARS){ toast(`Недостаточно звёзд — нужно ${NAME_CHANGE_COST_STARS} ⭐`); return; }
   if (!free) p.stars -= NAME_CHANGE_COST_STARS;
   p.name = name;
