@@ -385,6 +385,8 @@ body{
 .chat-body{flex:1;}
 .chat-head{display:flex;gap:8px;align-items:baseline;}
 .chat-name{font-weight:700;font-size:13px;}
+.clickable-name{cursor:pointer;}
+.clickable-name:active{opacity:.7;}
 .chat-name.admin{color:var(--gold);}
 .chat-time{font-size:10.5px;color:var(--text-dim);}
 .chat-text{font-size:13px;color:#E4DCC9;}

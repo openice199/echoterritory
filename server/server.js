@@ -168,6 +168,40 @@ app.get("/api/arena/opponents", authenticate, async (req, res) => {
   }
 });
 
+/* ===== Публичный профиль игрока: ник, уровень, экипировка, статы — то, что
+   можно увидеть, кликнув на чей-то ник в чате/арене/клане. Деньги (rub/stars)
+   и полный инвентарь намеренно не отдаём — только то, что реально "видно". */
+app.get("/api/players/:telegramId/profile", authenticate, async (req, res) => {
+  try {
+    const saved = await loadPlayer(req.params.telegramId);
+    if (!saved) return res.status(404).json({ error: "not found" });
+    const p = saved.state.player;
+    const inv = Array.isArray(saved.state.inventory) ? saved.state.inventory : [];
+    const equipment = {};
+    Object.keys(p.equipment || {}).forEach((slot) => {
+      const itemId = p.equipment[slot];
+      const item = itemId ? inv.find((i) => i.id === itemId) : null;
+      equipment[slot] = item ? {
+        id: item.id, name: item.name, icon: item.icon, rarity: item.rarity,
+        dmgMin: item.dmgMin, dmgMax: item.dmgMax, def: item.def, zone: item.zone,
+        statBonus: item.statBonus, critBonus: item.critBonus,
+      } : null;
+    });
+    const clan = await getClanForPlayer(req.params.telegramId);
+    res.json({
+      telegramId: req.params.telegramId,
+      name: p.name, level: p.level, rep: p.rep, district: p.district,
+      hp: p.hp, maxHp: p.maxHp, stats: p.stats,
+      arenaRep: p.arenaRep || 0, arenaWins: p.arenaWins || 0, arenaLosses: p.arenaLosses || 0,
+      equipment,
+      clan: clan ? { id: clan.id, name: clan.name, tag: clan.tag, icon: clan.icon, color: clan.color } : null,
+    });
+  } catch (e) {
+    console.error("player profile failed:", e);
+    res.status(500).json({ error: "failed" });
+  }
+});
+
 /* ===== Территории и войны за улицы (реальные кланы) ===== */
 app.get("/api/territory", authenticate, async (req, res) => {
   try {

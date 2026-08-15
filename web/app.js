@@ -1308,6 +1308,103 @@ function renderClanDetail(root, c){
   });
 }
 
+/* ===== Публичный профиль реального игрока (клик по нику где угодно) ===== */
+async function viewRealPlayerProfile(telegramId, fallbackName){
+  if (!telegramId) return;
+  screenStack.push("playerProfile");
+  document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+  document.querySelector('.screen[data-screen="playerProfile"]').classList.add("active");
+  document.getElementById("screenTitle").textContent = "Профиль игрока";
+  document.getElementById("backBtn").classList.remove("hidden");
+  document.getElementById("menuBtn").classList.add("hidden");
+  document.querySelectorAll(".nav-btn").forEach(b => b.classList.remove("active"));
+
+  const root = document.getElementById("playerProfileRoot");
+  root.innerHTML = `<p class="dim center-pad">Загрузка…</p>`;
+  let profile;
+  try {
+    profile = await apiFetch(`/api/players/${telegramId}/profile`);
+  } catch (e) {
+    root.innerHTML = `<p class="dim center-pad">Не удалось загрузить профиль ${fallbackName || "игрока"}.</p>`;
+    return;
+  }
+  renderRealPlayerProfile(root, profile);
+}
+
+function computeProfileDerivedStats(profile){
+  const bonus = { str:0, agi:0, hpStat:0, luck:0 };
+  let critBonusSum = 0, totalDef = 0;
+  Object.values(profile.equipment || {}).forEach(item => {
+    if (!item) return;
+    if (item.statBonus) Object.keys(item.statBonus).forEach(k => { bonus[k] = (bonus[k]||0) + item.statBonus[k]; });
+    if (item.critBonus) critBonusSum += item.critBonus;
+    if (item.def) totalDef += item.def;
+  });
+  const s = {
+    str: Math.round((profile.stats.str||0) + bonus.str),
+    agi: Math.round((profile.stats.agi||0) + bonus.agi),
+    hpStat: Math.round((profile.stats.hpStat||0) + bonus.hpStat),
+    luck: Math.round((profile.stats.luck||0) + bonus.luck),
+  };
+  const weapon = profile.equipment.weapon || { dmgMin:2, dmgMax:4 };
+  const atk = Math.round(s.str*1.5 + weapon.dmgMin);
+  const dodge = Math.min(25, Math.round(s.agi*0.3));
+  const crit = Math.min(50, Math.round(5 + s.luck*0.5) + critBonusSum);
+  return { atk, def: totalDef, dodge, crit };
+}
+
+function renderRealPlayerProfile(root, profile){
+  const d = computeProfileDerivedStats(profile);
+  const s = profile.stats || {};
+  root.innerHTML = `
+    <div class="card">
+      <div class="pp-header">
+        <div class="avatar-wrap profile-avatar" style="width:64px;height:64px;flex:0 0 64px;">
+          <img src="assets/avatars/default.png" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;">
+        </div>
+        <div>
+          <div class="pp-name">${profile.clan?`${profile.clan.icon} <span class="clan-tag">[${profile.clan.tag}]</span> `:""}${profile.name}</div>
+          <div class="dim">Уровень ${profile.level} · Репутация ${profile.rep||0}</div>
+          <div class="dim">Район: ${profile.district||"—"}</div>
+        </div>
+      </div>
+    </div>
+    <div class="pp-stat-list">
+      <div class="pp-stat-row"><span class="stat-icon">💪</span><span class="stat-name">Сила</span><b>${s.str||0}</b></div>
+      <div class="pp-stat-row"><span class="stat-icon">🏃</span><span class="stat-name">Ловкость</span><b>${s.agi||0}</b></div>
+      <div class="pp-stat-row"><span class="stat-icon">❤️</span><span class="stat-name">Здоровье</span><b>${s.hpStat||0}</b></div>
+      <div class="pp-stat-row"><span class="stat-icon">⭐</span><span class="stat-name">Удача</span><b>${s.luck||0}</b></div>
+    </div>
+    <div class="card-title">Основные показатели</div>
+    <div class="derived-grid">
+      <div class="derived-item"><span class="dim">Атака</span><b>${d.atk}</b></div>
+      <div class="derived-item"><span class="dim">Защита</span><b>${d.def}</b></div>
+      <div class="derived-item"><span class="dim">Уклонение</span><b>${d.dodge}%</b></div>
+      <div class="derived-item"><span class="dim">Шанс крита</span><b>${d.crit}%</b></div>
+    </div>
+    <div class="card-title">Арена</div>
+    <div class="derived-grid">
+      <div class="derived-item"><span class="dim">Репутация</span><b>${profile.arenaRep}</b></div>
+      <div class="derived-item"><span class="dim">W / L</span><b>${profile.arenaWins}/${profile.arenaLosses}</b></div>
+    </div>
+    <div class="card-title">Экипировка</div>
+    <div class="equip-grid" id="ppEquipGrid"></div>
+  `;
+  const grid = document.getElementById("ppEquipGrid");
+  EQUIP_SLOT_ORDER.forEach(slotKey => {
+    const item = profile.equipment ? profile.equipment[slotKey] : null;
+    const el = document.createElement("div");
+    el.className = "equip-slot" + (item ? " filled" : "");
+    el.innerHTML = `
+      <span class="es-icon">${item ? iconHtml(item.icon) : EQUIP_SLOT_ICONS[slotKey]}</span>
+      <span class="es-label">${EQUIP_SLOT_LABELS[slotKey]}</span>
+      <span class="es-item">${item ? `${item.rarity?`<span class="rarity-dot rarity-${item.rarity}"></span>`:""}${item.name}` : "пусто"}</span>
+      ${item ? `<span class="es-stat">${itemStatDesc(item)}</span>` : ""}
+    `;
+    grid.appendChild(el);
+  });
+}
+
 /* ===== Player profile (view teammate) ===== */
 function openPlayerProfile(member, clan){
   screenStack.push("playerProfile");
@@ -1612,10 +1709,11 @@ function renderRealClanDetail(root){
     el.innerHTML = `
       <span class="status-dot online"></span>
       <div class="member-main">
-        <span>${isMe ? "(вы) " : ""}${m.name || "Игрок"}</span>
+        <span class="clickable-name">${isMe ? "(вы) " : ""}${m.name || "Игрок"}</span>
       </div>
       <span class="member-role ${m.role==="leader"?"leader":""}">${roleLabel}</span>
     `;
+    el.querySelector(".member-main span").addEventListener("click", () => viewRealPlayerProfile(m.telegram_id, m.name));
     box.appendChild(el);
   });
   document.getElementById("openRealClanChatBtn").addEventListener("click", () => openRealClanChat(c));
@@ -1666,11 +1764,14 @@ function renderRealClanChatMessages(){
     <div class="chat-msg">
       <div class="chat-avatar">🙂</div>
       <div class="chat-body">
-        <div class="chat-head"><span class="chat-name">${m.telegramId === window.myTelegramId ? realClanTag() + state.player.name : m.name}</span><span class="chat-time">${m.time}</span></div>
+        <div class="chat-head"><span class="chat-name clickable-name" data-tid="${m.telegramId}">${m.telegramId === window.myTelegramId ? realClanTag() + state.player.name : m.name}</span><span class="chat-time">${m.time}</span></div>
         <div class="chat-text">${m.text}</div>
       </div>
     </div>`).join("") : `<p class="dim center-pad">Пока никто не писал. Будьте первым!</p>`;
   box.scrollTop = box.scrollHeight;
+  box.querySelectorAll(".chat-name[data-tid]").forEach(el => {
+    el.addEventListener("click", () => viewRealPlayerProfile(el.dataset.tid, el.textContent));
+  });
 }
 
 function sendRealClanChat(){
@@ -1938,8 +2039,8 @@ async function renderArenaRating(){
   const p = state.player;
   let opponents = [];
   try { opponents = await apiFetch("/api/arena/opponents"); } catch (e) { console.warn(e); }
-  const rows = opponents.map(o => ({ name:o.name, level:o.level, rep:o.arenaRep, isMe:false }));
-  rows.push({ name:p.name, level:p.level, rep:p.arenaRep, isMe:true });
+  const rows = opponents.map(o => ({ name:o.name, level:o.level, rep:o.arenaRep, isMe:false, telegramId:o.telegramId }));
+  rows.push({ name:p.name, level:p.level, rep:p.arenaRep, isMe:true, telegramId:window.myTelegramId });
   rows.sort((a,b) => b.rep - a.rep);
   body.innerHTML = `<div class="clan-list" id="arenaRatingList"></div>`;
   const list = document.getElementById("arenaRatingList");
@@ -1950,11 +2051,12 @@ async function renderArenaRating(){
     el.innerHTML = `
       <b style="width:22px;text-align:center;color:${i<3?"var(--gold)":"var(--text-dim)"};">${i+1}</b>
       <div class="opponent-main">
-        <span class="opponent-name">${r.isMe?"<b>"+r.name+" (вы)</b>":r.name}</span>
+        <span class="opponent-name clickable-name" data-tid="${r.telegramId}">${r.isMe?"<b>"+r.name+" (вы)</b>":r.name}</span>
         <span class="opponent-sub">Ур. ${r.level} · ${arenaRankTitle(r.rep||0)}</span>
       </div>
       <b style="color:var(--gold);white-space:nowrap;">${r.rep||0} реп.</b>
     `;
+    el.querySelector(".opponent-name").addEventListener("click", () => viewRealPlayerProfile(r.telegramId, r.name));
     list.appendChild(el);
   });
 }
@@ -1976,11 +2078,12 @@ async function renderArenaList(){
     el.innerHTML = `
       <span class="status-dot online"></span>
       <div class="opponent-main">
-        <span class="opponent-name">${o.name}</span>
+        <span class="opponent-name clickable-name" data-tid="${o.telegramId}">${o.name}</span>
         <span class="opponent-sub">Ур. ${o.level}</span>
       </div>
       ${o.shielded ? `<span class="shield-badge">🛡 щит</span>` : `<button class="btn primary small challengeBtn">Вызвать</button>`}
     `;
+    el.querySelector(".opponent-name").addEventListener("click", () => viewRealPlayerProfile(o.telegramId, o.name));
     if (!o.shielded){
       el.querySelector(".challengeBtn").addEventListener("click", () => challengeOpponent(o));
     }
@@ -4546,13 +4649,16 @@ function renderChatTab(tab){
   document.getElementById("onlineTabBtn").textContent = `Онлайн (${presence.length})`;
   if (tab === "online"){
     box.innerHTML = presence.length ? presence.map(u => `
-      <div class="online-row">
+      <div class="online-row clickable-name" data-tid="${u.telegramId}">
         <span class="status-dot online"></span>
         <div class="member-main">
           <span>${u.telegramId === window.myTelegramId ? "(вы) " : ""}${u.name}</span>
           <span class="member-sub">в сети</span>
         </div>
       </div>`).join("") : `<p class="dim center-pad">Здесь пока никого.</p>`;
+    box.querySelectorAll(".online-row[data-tid]").forEach(el => {
+      el.addEventListener("click", () => viewRealPlayerProfile(el.dataset.tid, el.querySelector(".member-main span").textContent));
+    });
   } else {
     renderChat();
   }
@@ -4566,11 +4672,14 @@ function renderChat(){
     <div class="chat-msg">
       <div class="chat-avatar">🙂</div>
       <div class="chat-body">
-        <div class="chat-head"><span class="chat-name">${m.telegramId === window.myTelegramId ? renderName() : m.name}</span><span class="chat-time">${m.time}</span></div>
+        <div class="chat-head"><span class="chat-name clickable-name" data-tid="${m.telegramId}">${m.telegramId === window.myTelegramId ? renderName() : m.name}</span><span class="chat-time">${m.time}</span></div>
         <div class="chat-text">${m.text}</div>
       </div>
     </div>`).join("") : `<p class="dim center-pad">Пока тихо — напишите первым.</p>`;
   box.scrollTop = box.scrollHeight;
+  box.querySelectorAll(".chat-name[data-tid]").forEach(el => {
+    el.addEventListener("click", () => viewRealPlayerProfile(el.dataset.tid, el.textContent));
+  });
 }
 function sendChat(){
   const input = document.getElementById("chatInput");
