@@ -513,6 +513,11 @@ body{
 /* Player profile */
 .pp-header{display:flex;gap:14px;align-items:center;}
 .pp-header .avatar{width:72px;height:72px;font-size:34px;flex:0 0 72px;}
+.pp-avatar-large{
+  position:relative;width:100%;max-width:220px;aspect-ratio:500/875;margin:0 auto;
+  border-radius:12px;overflow:hidden;background:#241D13;border:1px solid var(--card-border);
+}
+.pp-avatar-large img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;}
 .pp-name{font-size:18px;font-weight:700;}
 .pp-stat-list{display:flex;flex-direction:column;gap:8px;}
 .pp-stat-row{

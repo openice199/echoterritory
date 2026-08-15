@@ -1357,17 +1357,13 @@ function renderRealPlayerProfile(root, profile){
   const d = computeProfileDerivedStats(profile);
   const s = profile.stats || {};
   root.innerHTML = `
-    <div class="card">
-      <div class="pp-header">
-        <div class="avatar-wrap profile-avatar" style="width:64px;height:64px;flex:0 0 64px;">
-          <img src="assets/avatars/default.png" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;">
-        </div>
-        <div>
-          <div class="pp-name">${profile.clan?`${profile.clan.icon} <span class="clan-tag">[${profile.clan.tag}]</span> `:""}${profile.name}</div>
-          <div class="dim">Уровень ${profile.level} · Репутация ${profile.rep||0}</div>
-          <div class="dim">Район: ${profile.district||"—"}</div>
-        </div>
+    <div class="card" style="text-align:center;">
+      <div class="pp-avatar-large">
+        <img src="assets/avatars/default.png" alt="">
       </div>
+      <div class="pp-name" style="margin-top:10px;">${profile.clan?`${profile.clan.icon} <span class="clan-tag">[${profile.clan.tag}]</span> `:""}${profile.name}</div>
+      <div class="dim">Уровень ${profile.level} · Репутация ${profile.rep||0}</div>
+      <div class="dim">Район: ${profile.district||"—"}</div>
     </div>
     <div class="pp-stat-list">
       <div class="pp-stat-row"><span class="stat-icon">💪</span><span class="stat-name">Сила</span><b>${s.str||0}</b></div>
