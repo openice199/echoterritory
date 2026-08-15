@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Territory 2026 — прототип</title>
-<link rel="stylesheet" href="style.css?v=21">
+<link rel="stylesheet" href="style.css?v=22">
 </head>
 <body>
 <div class="phone">
@@ -67,6 +67,7 @@
         <button class="menu-tile" data-goto="chat"><span class="mt-icon">💬</span><span class="mt-title">ЧАТ РАЙОНА</span><span class="mt-sub">общение с игроками</span></button>
         <button class="menu-tile" data-goto="arena"><span class="mt-icon">🏟️</span><span class="mt-title">АРЕНА</span><span class="mt-sub">PvP с живыми игроками</span></button>
         <button class="menu-tile" data-goto="auction"><span class="mt-icon">📜</span><span class="mt-title">АУКЦИОН</span><span class="mt-sub">купить и продать вещи</span></button>
+        <button class="menu-tile" data-goto="salon"><span class="mt-icon">💇</span><span class="mt-title">САЛОН КРАСОТЫ</span><span class="mt-sub">образ и ник</span></button>
       </div>
 
       <div class="card" id="districtFlavorCard">
@@ -359,6 +360,11 @@
       <div id="questsRoot"></div>
     </section>
 
+    <!-- САЛОН КРАСОТЫ -->
+    <section class="screen" data-screen="salon">
+      <div id="salonRoot"></div>
+    </section>
+
     <!-- ЗАГЛУШКА -->
     <section class="screen" data-screen="stub">
       <p class="dim center-pad" id="stubText">Раздел появится в следующей версии.</p>
@@ -380,7 +386,7 @@
 
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <script src="/socket.io/socket.io.js"></script>
-<script src="app.js?v=40"></script>
-<script src="persistence.js?v=9"></script>
+<script src="app.js?v=41"></script>
+<script src="persistence.js?v=10"></script>
 </body>
 </html>

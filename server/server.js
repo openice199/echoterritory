@@ -191,7 +191,7 @@ app.get("/api/players/:telegramId/profile", authenticate, async (req, res) => {
     res.json({
       telegramId: req.params.telegramId,
       name: p.name, level: p.level, rep: p.rep, district: p.district,
-      hp: p.hp, maxHp: p.maxHp, stats: p.stats,
+      hp: p.hp, maxHp: p.maxHp, stats: p.stats, avatarId: p.avatarId || "default",
       arenaRep: p.arenaRep || 0, arenaWins: p.arenaWins || 0, arenaLosses: p.arenaLosses || 0,
       equipment,
       clan: clan ? { id: clan.id, name: clan.name, tag: clan.tag, icon: clan.icon, color: clan.color } : null,

@@ -104,7 +104,10 @@
   };
   window.sendChatMessage = function(text){
     if (!socket) return;
-    socket.emit("chat_message", text);
+    // Передаём текущий игровой ник (может отличаться от Telegram-имени после
+    // смены в салоне красоты) — сервер использует его вместо socket.name.
+    const name = (typeof state !== "undefined" && state.player) ? state.player.name : undefined;
+    socket.emit("chat_message", { text, name });
   };
 
   async function loadSave(){
@@ -150,6 +153,7 @@
       level: 1,
       rep: 0,
       district: "Новый город",
+      avatarId: "default", nameChangesUsed: 0,
       hp: 80, maxHp: 80,
       exp: 0, maxExp: EXP_TABLE[0],
       rub: 500, stars: 0,

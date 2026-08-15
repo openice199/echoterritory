@@ -1359,7 +1359,7 @@ function renderRealPlayerProfile(root, profile){
   root.innerHTML = `
     <div class="card" style="text-align:center;">
       <div class="pp-avatar-large">
-        <img src="assets/avatars/default.png" alt="">
+        <img src="assets/avatars/${profile.avatarId||"default"}.png" alt="">
       </div>
       <div class="pp-name" style="margin-top:10px;">${profile.clan?`${profile.clan.icon} <span class="clan-tag">[${profile.clan.tag}]</span> `:""}${profile.name}</div>
       <div class="dim">Уровень ${profile.level} · Репутация ${profile.rep||0}</div>
@@ -1399,6 +1399,73 @@ function renderRealPlayerProfile(root, profile){
     `;
     grid.appendChild(el);
   });
+}
+
+/* ===== Салон красоты: смена образа за Т, смена ника за ⭐ (первый раз бесплатно) ===== */
+const AVATAR_CATALOG = [
+  { id:"default", name:"Дворовый", price:0 },
+  { id:"schoolboy", name:"Знайка", price:2000 },
+  { id:"waterguy", name:"Кент", price:2000 },
+  { id:"hypebeast", name:"Хайпбист", price:2000 },
+];
+const NAME_CHANGE_COST_STARS = 20;
+
+function renderSalon(){
+  const root = document.getElementById("salonRoot");
+  const p = state.player;
+  root.innerHTML = `
+    <div class="card">
+      <div class="card-title">Смена образа</div>
+      <div class="dim" style="margin-bottom:10px;">Каждая смена образа стоит Т — деньги списываются сразу при выборе.</div>
+      <div class="avatar-grid" id="salonAvatarGrid"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Смена ника</div>
+      <div class="dim" style="margin-bottom:10px;">${p.nameChangesUsed>0 ? `Стоимость: ${NAME_CHANGE_COST_STARS} ⭐` : "Первая смена — бесплатно."}</div>
+      <input type="text" id="salonNameInput" maxlength="20" value="${p.name}" style="width:100%;background:var(--card);border:1px solid var(--card-border);border-radius:8px;padding:10px 12px;color:var(--text);font-size:14px;margin-bottom:10px;">
+      <button class="btn primary full" id="salonNameBtn">${p.nameChangesUsed>0 ? `СМЕНИТЬ НИК (−${NAME_CHANGE_COST_STARS} ⭐)` : "СМЕНИТЬ НИК БЕСПЛАТНО"}</button>
+    </div>
+  `;
+  const grid = document.getElementById("salonAvatarGrid");
+  AVATAR_CATALOG.forEach(a => {
+    const isCurrent = (p.avatarId || "default") === a.id;
+    const el = document.createElement("div");
+    el.className = "avatar-option" + (isCurrent ? " current" : "");
+    el.innerHTML = `
+      <div class="avatar-option-img"><img src="assets/avatars/${a.id}.png" alt=""></div>
+      <div class="avatar-option-name">${a.name}</div>
+      ${isCurrent ? `<div class="avatar-option-current-tag">Текущий</div>` : `<div class="avatar-option-price">${a.price>0?`−${a.price.toLocaleString("ru-RU")} Т`:"Бесплатно"}</div>`}
+    `;
+    if (!isCurrent) el.addEventListener("click", () => selectAvatar(a));
+    grid.appendChild(el);
+  });
+  document.getElementById("salonNameBtn").addEventListener("click", changeNickname);
+}
+
+function selectAvatar(avatar){
+  const p = state.player;
+  if (avatar.price > 0 && p.rub < avatar.price){ toast(`Недостаточно Т — нужно ${avatar.price.toLocaleString("ru-RU")}`); return; }
+  if (avatar.price > 0) p.rub -= avatar.price;
+  p.avatarId = avatar.id;
+  toast(`Образ изменён: ${avatar.name}`);
+  renderHome();
+  renderSalon();
+}
+
+function changeNickname(){
+  const input = document.getElementById("salonNameInput");
+  const name = input.value.trim();
+  if (name.length < 2){ toast("Ник должен быть не короче 2 символов"); return; }
+  if (name.length > 20){ toast("Ник слишком длинный"); return; }
+  const p = state.player;
+  const free = p.nameChangesUsed === 0;
+  if (!free && p.stars < NAME_CHANGE_COST_STARS){ toast(`Недостаточно звёзд — нужно ${NAME_CHANGE_COST_STARS} ⭐`); return; }
+  if (!free) p.stars -= NAME_CHANGE_COST_STARS;
+  p.name = name;
+  p.nameChangesUsed = (p.nameChangesUsed || 0) + 1;
+  toast(`Ник изменён: ${name}`);
+  renderHome();
+  renderSalon();
 }
 
 /* ===== Player profile (view teammate) ===== */
@@ -2370,7 +2437,7 @@ function computeDamage(attackerStats, weaponAvg, zone, blockZone, defenderArmor)
 /* ===== Navigation ===== */
 const screenTitles = {
   home:"Territory", map:"Карта города", battle:"Бой", character:"Персонаж",
-  inventory:"Инвентарь", craft:"Профессии", work:"Работа", shop:"Магазин", chat:"Чат района", clan:"Клан", arena:"Арена", territorywar:"Война за территорию", auction:"Аукцион", quests:"Задания", stub:"Скоро"
+  inventory:"Инвентарь", craft:"Профессии", work:"Работа", shop:"Магазин", chat:"Чат района", clan:"Клан", arena:"Арена", territorywar:"Война за территорию", auction:"Аукцион", quests:"Задания", salon:"Салон красоты", stub:"Скоро"
 };
 let screenStack = ["home"];
 
@@ -2403,6 +2470,7 @@ function showScreen(name, opts={}){
   if (name === "work") enterWorkScreen();
   if (name === "battle") ensureBattleStarted();
   if (name === "quests") renderQuests();
+  if (name === "salon") renderSalon();
 }
 
 document.getElementById("backBtn").addEventListener("click", () => {
@@ -2445,6 +2513,7 @@ function renderHome(){
   document.getElementById("shop-rub").textContent = p.rub.toLocaleString("ru-RU");
   document.getElementById("shop-stars").textContent = p.stars;
   document.getElementById("p-avatar-lvl").textContent = p.level;
+  document.getElementById("p-avatar-img").src = `assets/avatars/${p.avatarId||"default"}.png`;
   const fd = districts.find(x => x.name === p.district);
   if (fd){
     document.getElementById("districtFlavorName").textContent = fd.name;

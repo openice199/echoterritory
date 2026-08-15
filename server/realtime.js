@@ -87,14 +87,19 @@ function setupRealtime(httpServer, { botToken, allowDevAuth }) {
 
     socket.on("leave_room", () => leaveCurrent());
 
-    socket.on("chat_message", async (text) => {
+    socket.on("chat_message", async (payload) => {
+      // Раньше клиент слал просто строку; теперь {text, name} — сохраняем
+      // совместимость на случай не обновившейся вкладки.
+      const text = typeof payload === "string" ? payload : payload && payload.text;
+      const displayName = (typeof payload === "object" && payload && typeof payload.name === "string" && payload.name.trim())
+        ? payload.name.trim().slice(0, 40) : socket.name;
       if (!currentRoom || typeof text !== "string") return;
       const clean = text.slice(0, 500).trim();
       if (!clean) return;
       try {
-        const createdAt = await saveChatMessage(currentRoom, socket.telegramId, socket.name, clean);
+        const createdAt = await saveChatMessage(currentRoom, socket.telegramId, displayName, clean);
         io.to(currentRoom).emit("chat_message", {
-          telegramId: socket.telegramId, name: socket.name, text: clean, created_at: createdAt,
+          telegramId: socket.telegramId, name: displayName, text: clean, created_at: createdAt,
         });
       } catch (e) {
         console.error("chat save failed:", e);
