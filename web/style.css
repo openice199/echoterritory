@@ -590,7 +590,7 @@ body{
   position:relative;width:100%;aspect-ratio:400/700;border-radius:8px;overflow:hidden;
   background:#241D13;margin-bottom:6px;
 }
-.avatar-option-img img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;}
+.avatar-option-img img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;display:block;}
 .avatar-option-name{font-size:11.5px;font-weight:700;}
 .avatar-option-price{font-size:10.5px;color:var(--gold);}
 .avatar-option-current-tag{font-size:10px;color:var(--text-dim);}
