@@ -4,18 +4,21 @@
 
 const CITY = "Химер-Сити";
 
+// bg — настоящее фото улицы из terr_main/images/area/ (оригинал держал day/night пары
+// на каждую локацию, здесь взят day-вариант тематически близкого реального кадра:
+// spalnik="спальный район" — ровно то, куда в оригинале попадал новый игрок; rinok="рынок").
 const AREAS = [
   { id: "novy_gorod", name: "Новый город", type: "district", parent: null },
-  { id: "ng_vokzal", name: "Вокзал", type: "street", parent: "novy_gorod", shop: false, npcs: ["bomj"] },
-  { id: "ng_rynok", name: "Хитрованский рынок", type: "street", parent: "novy_gorod", shop: true, npcs: ["bomj", "taxist"] },
+  { id: "ng_vokzal", name: "Вокзал", type: "street", parent: "novy_gorod", shop: false, npcs: ["bomj"], bg: "assets/areas/ng_vokzal.jpg" },
+  { id: "ng_rynok", name: "Хитрованский рынок", type: "street", parent: "novy_gorod", shop: true, npcs: ["bomj", "taxist"], bg: "assets/areas/ng_rynok.jpg" },
 
   { id: "armandon", name: "Армандон", type: "district", parent: null },
-  { id: "ar_sklad", name: "Склад", type: "street", parent: "armandon", shop: false, npcs: ["zek", "manyak"] },
-  { id: "ar_magaz", name: 'Магазин "Территория"', type: "street", parent: "armandon", shop: true, npcs: ["znayka"] },
+  { id: "ar_sklad", name: "Склад", type: "street", parent: "armandon", shop: false, npcs: ["zek", "manyak"], bg: "assets/areas/ar_sklad.jpg" },
+  { id: "ar_magaz", name: 'Магазин "Территория"', type: "street", parent: "armandon", shop: true, npcs: ["znayka"], bg: "assets/areas/ar_magaz.jpg" },
 
   { id: "staryi_gorod", name: "Старый город", type: "district", parent: null },
-  { id: "sg_tupik", name: "Тёмный тупик", type: "street", parent: "staryi_gorod", shop: false, npcs: ["psycho", "killer"] },
-  { id: "sg_ploshad", name: "Центральная площадь", type: "street", parent: "staryi_gorod", shop: true, npcs: ["bender"] },
+  { id: "sg_tupik", name: "Тёмный тупик", type: "street", parent: "staryi_gorod", shop: false, npcs: ["psycho", "killer"], bg: "assets/areas/sg_tupik.jpg" },
+  { id: "sg_ploshad", name: "Центральная площадь", type: "street", parent: "staryi_gorod", shop: true, npcs: ["bender"], bg: "assets/areas/sg_ploshad.jpg" },
 ];
 
 // Расстояние — условные секунды в пути (в оригинале areas_links.DISTANCE было 15000-40000,

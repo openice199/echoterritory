@@ -56,28 +56,31 @@
   <main class="layout">
 
     <section class="panel panel-area">
-      <div class="panel-title">Локация</div>
-      <div class="area-breadcrumb" id="areaBreadcrumb">—</div>
-      <h2 class="area-name" id="areaName">—</h2>
+      <div class="area-photo" id="areaPhoto">
+        <div class="area-photo-scrim">
+          <div class="area-breadcrumb" id="areaBreadcrumb">—</div>
+          <h2 class="area-name" id="areaName">—</h2>
+        </div>
+      </div>
 
       <div class="area-block">
-        <div class="block-label">Выходы</div>
+        <div class="block-label"><img class="title-icon" src="assets/icons/karta.gif" alt="">Выходы</div>
         <div class="exits-row" id="exitsRow"></div>
       </div>
 
       <div class="area-block" id="npcBlock">
-        <div class="block-label">Кто здесь</div>
+        <div class="block-label"><img class="title-icon" src="assets/icons/boi.gif" alt="">Кто здесь</div>
         <div class="npc-row" id="npcRow"></div>
       </div>
 
       <div class="area-block hidden" id="shopBlock">
-        <div class="block-label">Магазин</div>
+        <div class="block-label"><img class="title-icon" src="assets/icons/magaz.gif" alt="">Магазин</div>
         <div class="shop-grid" id="shopGrid"></div>
       </div>
     </section>
 
     <section class="panel panel-chat">
-      <div class="panel-title">Чат района <span class="online-count" id="onlineCount"></span></div>
+      <div class="panel-title"><img class="title-icon" src="assets/icons/forum.gif" alt="">Чат района <span class="online-count" id="onlineCount"></span></div>
       <div class="chat-log" id="chatLog"></div>
       <form id="chatForm" class="chat-form">
         <input type="text" id="chatInput" placeholder="Сообщение..." maxlength="300" autocomplete="off">
@@ -86,7 +89,7 @@
     </section>
 
     <section class="panel panel-character">
-      <div class="panel-title">Персонаж</div>
+      <div class="panel-title"><img class="title-icon" src="assets/icons/bag.gif" alt="">Персонаж</div>
 
       <div class="stats-block">
         <div class="stat-row"><span>Сила</span><b id="statStr">3</b><button class="stat-plus" data-stat="str">+</button></div>

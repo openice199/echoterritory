@@ -124,6 +124,7 @@ function renderArea() {
   const district = districtOf(area);
   document.getElementById("areaBreadcrumb").textContent = `${world.city} / ${district ? district.name : ""}`;
   document.getElementById("areaName").textContent = area.name;
+  if (area.bg) document.getElementById("areaPhoto").style.backgroundImage = `url(${area.bg})`;
 
   const exitsRow = document.getElementById("exitsRow");
   exitsRow.innerHTML = "";
