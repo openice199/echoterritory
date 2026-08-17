@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Territory — браузерная MMO</title>
-<link rel="stylesheet" href="style.css?v=5">
+<link rel="stylesheet" href="style.css?v=6">
 </head>
 <body>
 
@@ -41,9 +41,10 @@
 
 <div id="gameScreen" class="game-screen hidden">
   <header class="topbar">
+    <img class="topbar-logo" src="assets/chrome/logo01.gif" alt="Territory">
     <div class="topbar-id">
       <span class="p-name" id="pName">—</span>
-      <span class="p-level">ур. <b id="pLevel">1</b></span>
+      <span class="p-level">[<b id="pLevel">1</b>]</span>
     </div>
     <div class="topbar-hp">
       <div class="bar hp-bar"><div class="bar-fill" id="hpFill"></div></div>
@@ -55,37 +56,47 @@
 
   <main class="layout">
 
-    <section class="panel panel-area">
-      <div class="area-photo" id="areaPhoto">
-        <div class="area-photo-scrim">
-          <div class="area-breadcrumb" id="areaBreadcrumb">—</div>
-          <h2 class="area-name" id="areaName">—</h2>
+    <!-- Верхний ряд: сцена улицы + панель "Местоположение" — бок о бок, как в area.php оригинала -->
+    <section class="scene-row">
+      <div class="panel panel-scene">
+        <div class="area-photo" id="areaPhoto"></div>
+
+        <div class="area-block" id="npcBlock">
+          <div class="block-label"><img class="title-icon" src="assets/icons/boi.gif" alt="">Кто здесь</div>
+          <div class="npc-row" id="npcRow"></div>
+        </div>
+
+        <div class="area-block hidden" id="shopBlock">
+          <div class="block-label"><img class="title-icon" src="assets/icons/magaz.gif" alt="">Магазин</div>
+          <div class="shop-grid" id="shopGrid"></div>
         </div>
       </div>
 
-      <div class="area-block">
-        <div class="block-label"><img class="title-icon" src="assets/icons/karta.gif" alt="">Выходы</div>
-        <div class="exits-row" id="exitsRow"></div>
-      </div>
-
-      <div class="area-block" id="npcBlock">
-        <div class="block-label"><img class="title-icon" src="assets/icons/boi.gif" alt="">Кто здесь</div>
-        <div class="npc-row" id="npcRow"></div>
-      </div>
-
-      <div class="area-block hidden" id="shopBlock">
-        <div class="block-label"><img class="title-icon" src="assets/icons/magaz.gif" alt="">Магазин</div>
-        <div class="shop-grid" id="shopGrid"></div>
+      <div class="panel panel-location">
+        <p class="h2">Местоположение</p>
+        <table class="loc-table" id="locTable" cellpadding="3" cellspacing="1"></table>
+        <div class="loc-exits">
+          <div class="block-label"><img class="title-icon" src="assets/icons/karta.gif" alt="">Выходы</div>
+          <div class="exits-row" id="exitsRow"></div>
+        </div>
       </div>
     </section>
 
-    <section class="panel panel-chat">
-      <div class="panel-title"><img class="title-icon" src="assets/icons/forum.gif" alt="">Чат района <span class="online-count" id="onlineCount"></span></div>
-      <div class="chat-log" id="chatLog"></div>
-      <form id="chatForm" class="chat-form">
-        <input type="text" id="chatInput" placeholder="Сообщение..." maxlength="300" autocomplete="off">
-        <button type="submit" class="btn small">➤</button>
-      </form>
+    <!-- Нижний ряд: чат + список игроков онлайн — бок о бок, как fsmain cols="*,250" оригинала -->
+    <section class="chat-row">
+      <div class="panel panel-chat">
+        <div class="panel-title"><img class="title-icon" src="assets/icons/forum.gif" alt="">Чат района</div>
+        <div class="chat-log" id="chatLog"></div>
+        <form id="chatForm" class="chat-form">
+          <input type="text" id="chatInput" placeholder="Сообщение..." maxlength="300" autocomplete="off">
+          <button type="submit" class="btn small">➤</button>
+        </form>
+      </div>
+
+      <div class="panel panel-online">
+        <div class="panel-title"><img class="title-icon" src="assets/chrome/chechik.gif" alt="">Жителей: <span id="onlineCount">0</span></div>
+        <div class="online-list" id="onlineList"></div>
+      </div>
     </section>
 
     <section class="panel panel-character">
@@ -171,6 +182,6 @@
 <div id="toast"></div>
 
 <script src="/socket.io/socket.io.js"></script>
-<script src="app.js?v=5"></script>
+<script src="app.js?v=6"></script>
 </body>
 </html>

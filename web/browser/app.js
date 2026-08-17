@@ -88,7 +88,11 @@ function connectSocket() {
   socket = io("/browser", { withCredentials: true });
   socket.on("chat_message", (msg) => appendChatMessage(msg));
   socket.on("presence", (p) => {
-    document.getElementById("onlineCount").textContent = p.players.length ? `(${p.players.join(", ")})` : "";
+    document.getElementById("onlineCount").textContent = p.players.length;
+    const list = document.getElementById("onlineList");
+    list.innerHTML = p.players.length
+      ? p.players.map((n) => `<div class="online-item">${escapeHtml(n)}</div>`).join("")
+      : '<div class="inv-empty">Никого нет</div>';
   });
 }
 
@@ -122,9 +126,15 @@ function districtOf(area) { return area.parent ? areaById(area.parent) : null; }
 function renderArea() {
   const area = areaById(state.areaId);
   const district = districtOf(area);
-  document.getElementById("areaBreadcrumb").textContent = `${world.city} / ${district ? district.name : ""}`;
-  document.getElementById("areaName").textContent = area.name;
   if (area.bg) document.getElementById("areaPhoto").style.backgroundImage = `url(${area.bg})`;
+
+  const locTable = document.getElementById("locTable");
+  locTable.innerHTML = `
+    <tr><td>Город:<br><b class="t5">${world.city}</b></td></tr>
+    ${district ? `<tr><td>Район:<br><b class="t5">${district.name}</b></td></tr>` : ""}
+    <tr><td>Улица:<br><b class="t5">${area.name}</b></td></tr>
+    <tr><td><span class="t5">Улица не приватизирована</span></td></tr>
+  `;
 
   const exitsRow = document.getElementById("exitsRow");
   exitsRow.innerHTML = "";
