@@ -1407,6 +1407,9 @@ const AVATAR_CATALOG = [
   { id:"schoolboy", name:"Знайка", price:2000 },
   { id:"waterguy", name:"Кент", price:2000 },
   { id:"hypebeast", name:"Хайпбист", price:2000 },
+  { id:"grandpa", name:"Дед", price:2000 },
+  { id:"biker", name:"Качок", price:2000 },
+  { id:"vixen", name:"Вамп", price:2000 },
 ];
 const NAME_CHANGE_COST_STARS = 20;
 
