@@ -102,7 +102,7 @@
           <div class="doll-slot" data-slot="no" data-label="Броня"></div>
           <div class="doll-slot" data-slot="vo" data-label="Куртка"></div>
         </div>
-        <div class="doll-portrait" id="dollPortrait">🧍</div>
+        <div class="doll-portrait" id="dollPortrait"><img id="dollPortraitImg" src="assets/player/man.gif" alt=""></div>
         <div class="doll-col">
           <div class="doll-slot" data-slot="gu" data-label="Шлем"></div>
           <div class="doll-slot" data-slot="rh" data-label="Прав. рука"></div>
@@ -122,12 +122,14 @@
   <div class="fight-card">
     <div class="fight-vs">
       <div class="fight-side">
+        <img class="fight-portrait" id="fightSelfPortrait" src="assets/player/man.gif" alt="">
         <div class="fight-name" id="fightSelfName">Вы</div>
         <div class="bar hp-bar"><div class="bar-fill" id="fightSelfHpFill"></div></div>
         <div id="fightSelfHpText">0/0</div>
       </div>
       <div class="fight-vs-label">VS</div>
       <div class="fight-side">
+        <img class="fight-portrait" id="fightNpcPortrait" src="" alt="">
         <div class="fight-name" id="fightNpcName">—</div>
         <div class="bar hp-bar"><div class="bar-fill" id="fightNpcHpFill"></div></div>
         <div id="fightNpcHpText">0/0</div>

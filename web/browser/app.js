@@ -145,7 +145,7 @@ function renderArea() {
     const npc = world.npcs[key];
     const card = document.createElement("div");
     card.className = "npc-card";
-    card.innerHTML = `<span class="n">${npc.name}</span><span>СИЛ ${npc.str} · ЗДР ${npc.health}</span>`;
+    card.innerHTML = `<img class="npc-icon" src="${npc.icon}" alt=""><span class="n">${npc.name}</span><span>СИЛ ${npc.str} · ЗДР ${npc.health}</span>`;
     const btn = document.createElement("button");
     btn.textContent = "Атаковать";
     btn.disabled = !!fight;
@@ -166,7 +166,7 @@ function renderShop() {
     const owned = state.inventory[item.id] || 0;
     const div = document.createElement("div");
     div.className = "shop-item";
-    div.innerHTML = `<span class="n">${item.name}</span><span class="p">${item.price} Т${owned ? ` · есть: ${owned}` : ""}</span>`;
+    div.innerHTML = `<img class="item-icon" src="${item.icon}" alt=""><span class="n">${item.name}</span><span class="p">${item.price} Т${owned ? ` · есть: ${owned}` : ""}</span>`;
     const row = document.createElement("div");
     row.className = "row";
     const buyBtn = document.createElement("button");
@@ -188,7 +188,7 @@ function renderShop() {
 
 async function shopAction(kind, itemId) {
   try {
-    const data = await api(`/api/shop/${kind}`, "POST", { itemId });
+    const data = await api(`/browser-api/shop/${kind}`, "POST", { itemId });
     state = data.state;
     renderAll();
   } catch (e) {
@@ -205,11 +205,17 @@ function renderCharacter() {
   document.getElementById("freePoints").textContent = state.freePoints > 0 ? `Свободных очков: ${state.freePoints}` : "";
   document.querySelectorAll(".stat-plus").forEach((b) => { b.disabled = state.freePoints <= 0; });
 
+  const portraitSrc = `assets/player/${state.gender === "f" ? "woman" : "man"}.gif`;
+  const portraitImg = document.getElementById("dollPortraitImg");
+  if (portraitImg.getAttribute("src") !== portraitSrc) portraitImg.src = portraitSrc;
+
   document.querySelectorAll(".doll-slot").forEach((slotEl) => {
     const slot = slotEl.dataset.slot;
     const itemId = state.equipment[slot];
     slotEl.classList.toggle("filled", !!itemId);
-    slotEl.textContent = itemId ? itemById(itemId).name : slotEl.dataset.label;
+    slotEl.innerHTML = itemId
+      ? `<img class="item-icon" src="${itemById(itemId).icon}" alt="${itemById(itemId).name}">`
+      : "";
     slotEl.onclick = itemId ? () => unequip(slot) : null;
   });
 
@@ -223,7 +229,7 @@ function renderCharacter() {
     const item = itemById(itemId);
     const row = document.createElement("div");
     row.className = "inv-item";
-    row.innerHTML = `<span class="n">${item.name}</span><span class="c">×${count}</span>`;
+    row.innerHTML = `<img class="item-icon" src="${item.icon}" alt=""><span class="n">${item.name}</span><span class="c">×${count}</span>`;
     const btn = document.createElement("button");
     btn.textContent = "Надеть";
     btn.addEventListener("click", () => equip(itemId));
@@ -305,6 +311,8 @@ async function startFight(npcKey) {
 function renderFight() {
   document.getElementById("fightSelfName").textContent = state.name;
   document.getElementById("fightNpcName").textContent = fight.npc.name;
+  document.getElementById("fightSelfPortrait").src = `assets/player/${state.gender === "f" ? "woman" : "man"}.gif`;
+  document.getElementById("fightNpcPortrait").src = world.npcs[fight.npc.key].icon;
   document.getElementById("fightSelfHpFill").style.width = `${Math.max(0, (fight.selfHp / fight.selfMaxHp) * 100)}%`;
   document.getElementById("fightSelfHpText").textContent = `${fight.selfHp}/${fight.selfMaxHp}`;
   document.getElementById("fightNpcHpFill").style.width = `${Math.max(0, (fight.npc.hp / fight.npc.maxHp) * 100)}%`;
