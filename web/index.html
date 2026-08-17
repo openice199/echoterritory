@@ -68,6 +68,7 @@
         <button class="menu-tile" data-goto="arena"><span class="mt-icon">🏟️</span><span class="mt-title">АРЕНА</span><span class="mt-sub">PvP с живыми игроками</span></button>
         <button class="menu-tile" data-goto="auction"><span class="mt-icon">📜</span><span class="mt-title">АУКЦИОН</span><span class="mt-sub">купить и продать вещи</span></button>
         <button class="menu-tile" data-goto="salon"><span class="mt-icon">💇</span><span class="mt-title">САЛОН КРАСОТЫ</span><span class="mt-sub">образ и ник</span></button>
+        <button class="menu-tile" data-goto="atelier"><span class="mt-icon">✂️</span><span class="mt-title">АТЕЛЬЕ</span><span class="mt-sub">модификаторы снаряжения</span></button>
       </div>
 
       <div class="card" id="districtFlavorCard">
@@ -365,6 +366,11 @@
       <div id="salonRoot"></div>
     </section>
 
+    <!-- АТЕЛЬЕ -->
+    <section class="screen" data-screen="atelier">
+      <div id="atelierRoot"></div>
+    </section>
+
     <!-- ЗАГЛУШКА -->
     <section class="screen" data-screen="stub">
       <p class="dim center-pad" id="stubText">Раздел появится в следующей версии.</p>
@@ -386,7 +392,7 @@
 
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <script src="/socket.io/socket.io.js"></script>
-<script src="app.js?v=42"></script>
+<script src="app.js?v=43"></script>
 <script src="persistence.js?v=10"></script>
 </body>
 </html>

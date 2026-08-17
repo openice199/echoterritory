@@ -1468,6 +1468,101 @@ function changeNickname(){
   renderSalon();
 }
 
+/* ===== Ателье: модификаторы билда (Уворот/Крит/Танк) на надетое снаряжение =====
+   В оригинале territory.ru «Ателье» было зданием кастомного пошива по заявке
+   через модератора — тут вместо этого автоматический, самообслуживаемый аналог:
+   игрок платит Т, чтобы навесить на конкретную надетую вещь один из трёх
+   модификаторов стиля. Модификатор хранится прямо на предмете (statBonus/
+   critBonus/def), поэтому боевые формулы не нужно трогать — они уже читают
+   эти поля у любого снаряжения. */
+const MODIFIABLE_SLOTS = ["weapon","jacket","shirt","hat","pants","boots"];
+const GEAR_MODIFIERS = {
+  dodge: { name:"Уворот", icon:"🏃", desc:"+2 к ловкости", agi:2 },
+  crit:  { name:"Крит", icon:"💥", desc:"+2% к шансу крита", critBonus:2 },
+  tank:  { name:"Танк", icon:"🛡", desc:"+2 к силе, +3 к защите", str:2, def:3 },
+};
+
+function gearModCost(item){
+  const tier = item.tierId ? gearTiers.find(t => t.id === item.tierId) : null;
+  return tier ? Math.round(tier.shopPrice * 0.15) : 1000;
+}
+
+function applyGearModifier(item, modType){
+  // сначала откатываем прошлый модификатор этого же предмета, если был
+  if (item.modifier && GEAR_MODIFIERS[item.modifier.type]){
+    const old = GEAR_MODIFIERS[item.modifier.type];
+    if (old.agi) item.statBonus = { ...item.statBonus, agi:(item.statBonus?.agi||0)-old.agi };
+    if (old.str) item.statBonus = { ...item.statBonus, str:(item.statBonus?.str||0)-old.str };
+    if (old.critBonus) item.critBonus = (item.critBonus||0) - old.critBonus;
+    if (old.def) item.def = (item.def||0) - old.def;
+  }
+  const mod = GEAR_MODIFIERS[modType];
+  if (!item.statBonus) item.statBonus = {};
+  if (mod.agi) item.statBonus.agi = (item.statBonus.agi||0) + mod.agi;
+  if (mod.str) item.statBonus.str = (item.statBonus.str||0) + mod.str;
+  if (mod.critBonus) item.critBonus = (item.critBonus||0) + mod.critBonus;
+  if (mod.def) item.def = (item.def||0) + mod.def;
+  item.modifier = { type: modType };
+}
+
+function renderAtelier(){
+  const root = document.getElementById("atelierRoot");
+  root.innerHTML = `
+    <div class="card">
+      <div class="card-title">Ателье</div>
+      <div class="dim">Навесьте модификатор стиля на надетое снаряжение: Уворот, Крит или Танк. Повторное применение к той же вещи заменяет старый модификатор.</div>
+    </div>
+    <div id="atelierSlots"></div>
+  `;
+  const box = document.getElementById("atelierSlots");
+  MODIFIABLE_SLOTS.forEach(slotKey => {
+    const item = getEquippedItem(slotKey);
+    const el = document.createElement("div");
+    el.className = "card";
+    if (!item){
+      el.innerHTML = `
+        <div class="card-title" style="margin:0 0 4px;">${EQUIP_SLOT_LABELS[slotKey]}</div>
+        <p class="dim" style="margin:0;font-size:12px;">Нечего модифицировать — слот пуст.</p>
+      `;
+      box.appendChild(el);
+      return;
+    }
+    const cost = gearModCost(item);
+    const current = item.modifier && GEAR_MODIFIERS[item.modifier.type];
+    el.innerHTML = `
+      <div class="row-between" style="margin-bottom:6px;">
+        <div class="card-title" style="margin:0;">${EQUIP_SLOT_LABELS[slotKey]}: ${item.name}</div>
+        ${current ? `<span class="dim">${current.icon} ${current.name}</span>` : ""}
+      </div>
+      <div class="dim" style="margin-bottom:8px;font-size:11.5px;">Стоимость модификации: ${cost.toLocaleString("ru-RU")} Т</div>
+      <div class="row-between" style="gap:8px;" id="atelierMods-${slotKey}"></div>
+    `;
+    const modsRow = el.querySelector(`#atelierMods-${slotKey}`);
+    Object.keys(GEAR_MODIFIERS).forEach(modType => {
+      const mod = GEAR_MODIFIERS[modType];
+      const isCurrent = item.modifier && item.modifier.type === modType;
+      const btn = document.createElement("button");
+      btn.className = "btn " + (isCurrent ? "ghost" : "primary") + " small";
+      btn.style.flex = "1";
+      btn.disabled = isCurrent;
+      btn.title = mod.desc;
+      btn.textContent = `${mod.icon} ${mod.name}`;
+      btn.addEventListener("click", () => applyAtelierModifier(item, modType, cost));
+      modsRow.appendChild(btn);
+    });
+    box.appendChild(el);
+  });
+}
+
+function applyAtelierModifier(item, modType, cost){
+  if (state.player.rub < cost){ toast(`Недостаточно Т — нужно ${cost.toLocaleString("ru-RU")}`); return; }
+  state.player.rub -= cost;
+  applyGearModifier(item, modType);
+  toast(`Применён модификатор: ${GEAR_MODIFIERS[modType].name}`);
+  renderHome();
+  renderAtelier();
+}
+
 /* ===== Player profile (view teammate) ===== */
 function openPlayerProfile(member, clan){
   screenStack.push("playerProfile");
@@ -2437,7 +2532,7 @@ function computeDamage(attackerStats, weaponAvg, zone, blockZone, defenderArmor)
 /* ===== Navigation ===== */
 const screenTitles = {
   home:"Territory", map:"Карта города", battle:"Бой", character:"Персонаж",
-  inventory:"Инвентарь", craft:"Профессии", work:"Работа", shop:"Магазин", chat:"Чат района", clan:"Клан", arena:"Арена", territorywar:"Война за территорию", auction:"Аукцион", quests:"Задания", salon:"Салон красоты", stub:"Скоро"
+  inventory:"Инвентарь", craft:"Профессии", work:"Работа", shop:"Магазин", chat:"Чат района", clan:"Клан", arena:"Арена", territorywar:"Война за территорию", auction:"Аукцион", quests:"Задания", salon:"Салон красоты", atelier:"Ателье", stub:"Скоро"
 };
 let screenStack = ["home"];
 
@@ -2471,6 +2566,7 @@ function showScreen(name, opts={}){
   if (name === "battle") ensureBattleStarted();
   if (name === "quests") renderQuests();
   if (name === "salon") renderSalon();
+  if (name === "atelier") renderAtelier();
 }
 
 document.getElementById("backBtn").addEventListener("click", () => {
@@ -2772,14 +2868,21 @@ function zoneLabelCap(zone){ return { head:"голова", chest:"грудь", b
 function statShort(k){ return { str:"Сила", agi:"Ловк", hpStat:"Здор", luck:"Удача" }[k] || k; }
 
 function itemStatDesc(item){
-  if (item.def !== undefined) return `Защита: ${item.def}${item.zone?` (${zoneLabelCap(item.zone)})`:""}`;
-  if (item.dmgMin !== undefined) return `Урон: ${item.dmgMin}-${item.dmgMax}`;
-  if (item.statBonus) return "Бонус: " + Object.entries(item.statBonus).map(([k,v]) => `+${v} ${statShort(k)}`).join(", ");
-  if (item.critBonus) return `Крит: +${item.critBonus}%`;
-  if (item.energyRestore) return `Восстанавливает ${item.energyRestore} энергии`;
-  if (item.buffPercent) return `+${item.buffPercent}% ко всем статам на 1 час`;
-  if (item.hotMin !== undefined) return `Восстановление ${item.hotMin}-${item.hotMax} HP за ход в бою`;
-  return "";
+  const parts = [];
+  if (item.def !== undefined) parts.push(`Защита: ${item.def}${item.zone?` (${zoneLabelCap(item.zone)})`:""}`);
+  if (item.dmgMin !== undefined) parts.push(`Урон: ${item.dmgMin}-${item.dmgMax}`);
+  if (item.statBonus && Object.values(item.statBonus).some(v => v)) {
+    parts.push("Бонус: " + Object.entries(item.statBonus).filter(([,v]) => v).map(([k,v]) => `+${v} ${statShort(k)}`).join(", "));
+  }
+  if (item.critBonus) parts.push(`Крит: +${item.critBonus}%`);
+  if (item.energyRestore) parts.push(`Восстанавливает ${item.energyRestore} энергии`);
+  if (item.buffPercent) parts.push(`+${item.buffPercent}% ко всем статам на 1 час`);
+  if (item.hotMin !== undefined) parts.push(`Восстановление ${item.hotMin}-${item.hotMax} HP за ход в бою`);
+  if (item.modifier && GEAR_MODIFIERS[item.modifier.type]) {
+    const m = GEAR_MODIFIERS[item.modifier.type];
+    parts.push(`${m.icon} ${m.name}`);
+  }
+  return parts.join(" · ");
 }
 function itemCompareDelta(item, current){
   if (!current || current === item) return "";
