@@ -314,6 +314,21 @@ app.post("/api/admin/grant-money", requireAdmin, async (req, res) => {
   await savePlayer(telegramId, null, saved.state);
   res.json({ ok: true, rub: saved.state.player.rub });
 });
+app.post("/api/admin/set-level", requireAdmin, async (req, res) => {
+  const { telegramId, level } = req.body || {};
+  if (!telegramId || !level) return res.status(400).json({ error: "telegramId and level required" });
+  const saved = await loadPlayer(telegramId);
+  if (!saved) return res.status(404).json({ error: "not found" });
+  const p = saved.state.player;
+  const target = Math.max(1, Math.min(25, Number(level)));
+  const gained = target - (p.level || 1);
+  if (gained > 0) p.freePoints = (p.freePoints || 0) + gained * 3;
+  p.level = target;
+  p.exp = 0;
+  if (target >= 25) p.maxExp = 35000; // клиент пересчитает при следующем level-up, если когда-нибудь снимут кап
+  await savePlayer(telegramId, null, saved.state);
+  res.json({ ok: true, level: p.level, freePoints: p.freePoints });
+});
 
 // Отдаём статику игры тем же сервером — один процесс, один деплой.
 app.use(express.static(path.join(__dirname, "..", "web")));
