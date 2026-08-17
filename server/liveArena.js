@@ -180,8 +180,8 @@ function attachLiveArena(io, socket, { botToken }) {
 
     const fA = fighterFromState(challengerSaved.state);
     const fB = fighterFromState(opponentSaved.state);
-    const maxHpA = 60 + fA.hpStat * 3;
-    const maxHpB = 60 + fB.hpStat * 3;
+    const maxHpA = 80 + fA.hpStat * 4;
+    const maxHpB = 80 + fB.hpStat * 4;
     const battleId = "b_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
     const battle = {
       id: battleId,

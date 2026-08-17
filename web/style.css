@@ -595,6 +595,14 @@ body{
 .avatar-option-price{font-size:10.5px;color:var(--gold);}
 .avatar-option-current-tag{font-size:10px;color:var(--text-dim);}
 
+/* Atelier — модификаторы снаряжения */
+.mod-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.mod-option{background:var(--card);border:1px solid var(--card-border);border-radius:10px;padding:9px;}
+.mod-option.current{border-color:var(--gold);}
+.mod-option-head{font-size:12.5px;}
+.mod-option-desc{font-size:11px;color:var(--text-dim);margin-top:3px;}
+.mod-option-current-tag{font-size:10.5px;color:var(--gold);margin-top:6px;font-weight:700;}
+
 /* Territory war */
 .war-vs-row{display:flex;align-items:center;gap:10px;}
 .war-side{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;text-align:center;}

@@ -75,17 +75,20 @@ function computeDamage(attackerStats, weaponAvg, zone, blockZone, defenderArmor)
   const base = (attackerStats.str * 1.5 + weaponAvg) * (1 + attackerStats.agi * 0.01);
   const critChance = 5 + attackerStats.luck * 0.5 + (attackerStats.critBonus || 0);
   const isCrit = roll() < critChance;
-  let dmg = base * ZONE_MULTIPLIER[zone] * (isCrit ? 2 : 1);
+  let dmg = base * ZONE_MULTIPLIER[zone] * (isCrit ? 1.5 : 1);
   if (zone === blockZone) dmg *= 0.3;
-  dmg = Math.max(1, Math.round(dmg - (defenderArmor || 0)));
+  // % снижение урона с уменьшающейся отдачей вместо плоского вычитания —
+  // держи в синхроне с web/app.js::computeDamage.
+  const mitigation = Math.min(0.7, (defenderArmor || 0) / ((defenderArmor || 0) + 30));
+  dmg = Math.max(1, Math.round(dmg * (1 - mitigation)));
   return { dmg, dodged: false, crit: isCrit };
 }
 
 // Один раунд = один обмен ударами. Возвращает итог всей дуэли (до 20 раундов,
 // как в клиентском симуляторе арены/войн).
 function simulateDuel(a, b) {
-  let hpA = 60 + a.hpStat * 3;
-  let hpB = 60 + b.hpStat * 3;
+  let hpA = 80 + a.hpStat * 4;
+  let hpB = 80 + b.hpStat * 4;
   const maxHpA = hpA, maxHpB = hpB;
   let rounds = 0;
   while (hpA > 0 && hpB > 0 && rounds < 20) {

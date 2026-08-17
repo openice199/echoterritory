@@ -256,6 +256,12 @@
       saveNow(); // первый заход — сразу создаём запись
     }
     if (typeof bumpQuestProgress === "function") bumpQuestProgress("login", 1);
+    // maxHp теперь всегда пересчитывается из уровня + эффективной hpStat (см.
+    // recalcMaxHp в app.js) — прогоняем один раз при заходе, чтобы и старые
+    // сохранения (посчитанные по прежней статичной формуле), и свежие
+    // персонажи сразу получили верное значение, а не ждали следующего
+    // level-up/экипировки.
+    if (typeof recalcMaxHp === "function") recalcMaxHp();
     renderHome();
     if (typeof refreshRealClan === "function"){
       refreshRealClan().then(renderHome);

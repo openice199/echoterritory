@@ -128,11 +128,28 @@ function effectiveStats(){
     luck: Math.round((s.luck+b.luck)*mult),
   };
 }
+// Максимум HP раньше был статичным числом, которое вручную бампалось в паре
+// мест (+5 за очко в HP, и всё) — экипировка/эликсиры с бонусом к hpStat
+// физически не могли повлиять на живучесть в PvE. Теперь maxHp всегда
+// пересчитывается из уровня + текущей эффективной hpStat (с учётом брони/
+// эликсиров), а текущее HP сдвигается на дельту, чтобы не лечить/не палить
+// игрока просто от пересчёта.
+function recalcMaxHp(){
+  const p = state.player;
+  const eff = effectiveStats();
+  const newMax = 80 + (p.level-1)*6 + eff.hpStat*5;
+  const delta = newMax - (p.maxHp || 80);
+  p.maxHp = newMax;
+  p.hp = Math.max(1, Math.min(newMax, (p.hp||newMax) + delta));
+}
+
 function equipItem(slotKey, itemId){
   state.player.equipment[slotKey] = itemId;
+  recalcMaxHp();
 }
 function unequipItem(slotKey){
   state.player.equipment[slotKey] = null;
+  recalcMaxHp();
 }
 
 function findItem(id){ return state.inventory.find(i => i.id === id); }
@@ -1480,9 +1497,10 @@ function changeNickname(){
    эти поля у любого снаряжения. */
 const MODIFIABLE_SLOTS = ["weapon","jacket","shirt","hat","pants","boots"];
 const GEAR_MODIFIERS = {
-  dodge: { name:"Уворот", icon:"🏃", desc:"+2 к ловкости", agi:2 },
-  crit:  { name:"Крит", icon:"💥", desc:"+2% к шансу крита", critBonus:2 },
-  tank:  { name:"Танк", icon:"🛡", desc:"+2 к силе, +3 к защите", str:2, def:3 },
+  dodge:    { name:"Уворот", icon:"🏃", desc:"+2 к ловкости", agi:2 },
+  crit:     { name:"Крит", icon:"💥", desc:"+2% к шансу крита", critBonus:2 },
+  tank:     { name:"Танк", icon:"🛡", desc:"+2 к силе, +3 к защите", str:2, def:3 },
+  vitality: { name:"Живучесть", icon:"❤️", desc:"+2 к здоровью (макс. HP)", hpStat:2 },
 };
 
 function gearModCost(item){
@@ -1496,6 +1514,7 @@ function applyGearModifier(item, modType){
     const old = GEAR_MODIFIERS[item.modifier.type];
     if (old.agi) item.statBonus = { ...item.statBonus, agi:(item.statBonus?.agi||0)-old.agi };
     if (old.str) item.statBonus = { ...item.statBonus, str:(item.statBonus?.str||0)-old.str };
+    if (old.hpStat) item.statBonus = { ...item.statBonus, hpStat:(item.statBonus?.hpStat||0)-old.hpStat };
     if (old.critBonus) item.critBonus = (item.critBonus||0) - old.critBonus;
     if (old.def) item.def = (item.def||0) - old.def;
   }
@@ -1503,9 +1522,11 @@ function applyGearModifier(item, modType){
   if (!item.statBonus) item.statBonus = {};
   if (mod.agi) item.statBonus.agi = (item.statBonus.agi||0) + mod.agi;
   if (mod.str) item.statBonus.str = (item.statBonus.str||0) + mod.str;
+  if (mod.hpStat) item.statBonus.hpStat = (item.statBonus.hpStat||0) + mod.hpStat;
   if (mod.critBonus) item.critBonus = (item.critBonus||0) + mod.critBonus;
   if (mod.def) item.def = (item.def||0) + mod.def;
   item.modifier = { type: modType };
+  recalcMaxHp();
 }
 
 function renderAtelier(){
@@ -1513,7 +1534,7 @@ function renderAtelier(){
   root.innerHTML = `
     <div class="card">
       <div class="card-title">Ателье</div>
-      <div class="dim">Навесьте модификатор стиля на надетое снаряжение: Уворот, Крит или Танк. Повторное применение к той же вещи заменяет старый модификатор.</div>
+      <div class="dim">Навесьте модификатор стиля на надетое снаряжение. Повторное применение к той же вещи заменяет старый модификатор (его бонус снимается).</div>
     </div>
     <div id="atelierSlots"></div>
   `;
@@ -1531,27 +1552,24 @@ function renderAtelier(){
       return;
     }
     const cost = gearModCost(item);
-    const current = item.modifier && GEAR_MODIFIERS[item.modifier.type];
     el.innerHTML = `
-      <div class="row-between" style="margin-bottom:6px;">
-        <div class="card-title" style="margin:0;">${EQUIP_SLOT_LABELS[slotKey]}: ${item.name}</div>
-        ${current ? `<span class="dim">${current.icon} ${current.name}</span>` : ""}
-      </div>
+      <div class="card-title" style="margin:0 0 6px;">${EQUIP_SLOT_LABELS[slotKey]}: ${item.name}</div>
       <div class="dim" style="margin-bottom:8px;font-size:11.5px;">Стоимость модификации: ${cost.toLocaleString("ru-RU")} Т</div>
-      <div class="row-between" style="gap:8px;" id="atelierMods-${slotKey}"></div>
+      <div class="mod-grid" id="atelierMods-${slotKey}"></div>
     `;
     const modsRow = el.querySelector(`#atelierMods-${slotKey}`);
     Object.keys(GEAR_MODIFIERS).forEach(modType => {
       const mod = GEAR_MODIFIERS[modType];
       const isCurrent = item.modifier && item.modifier.type === modType;
-      const btn = document.createElement("button");
-      btn.className = "btn " + (isCurrent ? "ghost" : "primary") + " small";
-      btn.style.flex = "1";
-      btn.disabled = isCurrent;
-      btn.title = mod.desc;
-      btn.textContent = `${mod.icon} ${mod.name}`;
-      btn.addEventListener("click", () => applyAtelierModifier(item, modType, cost));
-      modsRow.appendChild(btn);
+      const opt = document.createElement("div");
+      opt.className = "mod-option" + (isCurrent ? " current" : "");
+      opt.innerHTML = `
+        <div class="mod-option-head">${mod.icon} <b>${mod.name}</b></div>
+        <div class="mod-option-desc">${mod.desc}</div>
+        ${isCurrent ? `<div class="mod-option-current-tag">Применено</div>` : `<button class="btn primary small full" style="margin-top:6px;">Применить</button>`}
+      `;
+      if (!isCurrent) opt.querySelector("button").addEventListener("click", () => applyAtelierModifier(item, modType, cost));
+      modsRow.appendChild(opt);
     });
     box.appendChild(el);
   });
@@ -2523,12 +2541,17 @@ function computeDamage(attackerStats, weaponAvg, zone, blockZone, defenderArmor)
   let base = (attackerStats.str * 1.5 + weaponAvg) * (1 + attackerStats.agi * 0.01);
   const critChance = 5 + attackerStats.luck * 0.5 + (attackerStats.critBonus || 0);
   const isCrit = roll() < critChance;
-  let dmg = base * zoneMultiplier[zone] * (isCrit ? 2 : 1);
+  let dmg = base * zoneMultiplier[zone] * (isCrit ? 1.5 : 1);
 
   const blocked = zone === blockZone;
   if (blocked) dmg *= 0.3;
 
-  dmg = Math.max(1, Math.round(dmg - (defenderArmor || 0)));
+  // Защита раньше просто вычиталась — против крупных чисел (крит по голове)
+  // она обнулялась и переставала что-либо решать. Теперь это % снижения урона
+  // с уменьшающейся отдачей (soft cap ~70% при очень большой защите), так что
+  // броня остаётся значимой на любом уровне урона.
+  const mitigation = Math.min(0.7, (defenderArmor || 0) / ((defenderArmor || 0) + 30));
+  dmg = Math.max(1, Math.round(dmg * (1 - mitigation)));
   return { dmg, dodged:false, crit:isCrit, blocked };
 }
 
@@ -2979,7 +3002,7 @@ document.querySelectorAll(".stat-plus").forEach(btn => {
     const key = btn.dataset.stat === "hp" ? "hpStat" : btn.dataset.stat;
     p.stats[key]++;
     p.freePoints--;
-    if (key === "hpStat"){ p.maxHp += 5; p.hp += 5; }
+    if (key === "hpStat") recalcMaxHp();
     renderCharacter();
     renderHome();
     toast("Очко распределено");
@@ -3105,6 +3128,7 @@ function drinkElixir(item){
   const expiresAt = Date.now() + ELIXIR_DURATION_MS;
   if (already) already.expiresAt = expiresAt;
   else p.activeElixirs.push({ id:item.id, name:item.name, buffPercent:item.buffPercent, expiresAt });
+  recalcMaxHp();
   renderHome();
   renderInventory("all");
   toast(`Выпит ${item.name}: +${item.buffPercent}% ко всем статам на 1 час`);
@@ -5155,6 +5179,7 @@ function endBattle(won){
       logLine(`Новый уровень: ${state.player.level}!`, "crit");
       leveledUp = true;
     }
+    if (leveledUp) recalcMaxHp();
     if (state.player.level >= 25) state.player.exp = 0;
     const invCountBefore = state.inventory.length;
     maybeDropGear(enemy.level);
