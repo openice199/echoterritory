@@ -2608,6 +2608,42 @@ document.querySelectorAll("[data-goto]").forEach(btn => {
 
 document.getElementById("addFundsBtn").addEventListener("click", () => toast("Пополнение баланса — в следующей версии"));
 
+/* ===== Tutorial (first-session onboarding) ===== */
+const TUTORIAL_STEPS = [
+  { icon:"👋", title:"Химер-Сити", text:"Добро пожаловать. Это город, поделённый на районы — здесь дерутся за деньги, репутацию и территорию. Пара шагов — и разберёшься, с чего начать." },
+  { icon:"⚔️", title:"Бой", text:"В драке выбираешь зону атаки (голова/грудь/живот/ноги) и зону блока. Попал в незаблокированную зону — больше урона. Голова бьёт сильнее всего, но и рискованнее." },
+  { icon:"🎽", title:"Экипировка", text:"На «Персонаже» одета броня и оружие по 6 слотам — от них зависят статы и защита. В «Ателье» на шмот можно повесить модификатор: уворот, крит или танк." },
+  { icon:"⛏️", title:"Работа и ремёсла", text:"«Работа» и профессии в «Ремёслах» идут по таймеру и тикают, даже если закрыл приложение — зашёл, запустил, вернулся позже за результатом." },
+  { icon:"🥊", title:"Арена", text:"Вызови любого игрока на «Арене» — бой живой, пошаговый, оба выбирают ходы одновременно. Победа даёт очки, поражение — недолгий щит от новых вызовов." },
+  { icon:"🛡️", title:"Клан и территории", text:"Вступи в клан или создай свой — кланы воюют за районы города и собирают с них налог. Одному тяжело, с кланом — веселее и выгоднее." },
+];
+let tutorialStep = 0;
+function renderTutorialStep(){
+  const s = TUTORIAL_STEPS[tutorialStep];
+  document.getElementById("tutIcon").textContent = s.icon;
+  document.getElementById("tutTitle").textContent = s.title;
+  document.getElementById("tutText").textContent = s.text;
+  document.getElementById("tutDots").innerHTML = TUTORIAL_STEPS.map((_, i) =>
+    `<span class="${i === tutorialStep ? "active" : ""}"></span>`).join("");
+  document.getElementById("tutNextBtn").textContent = tutorialStep === TUTORIAL_STEPS.length - 1 ? "Начать игру!" : "Далее";
+}
+function startTutorial(){
+  tutorialStep = 0;
+  renderTutorialStep();
+  document.getElementById("tutorialOverlay").classList.remove("hidden");
+}
+function finishTutorial(){
+  document.getElementById("tutorialOverlay").classList.add("hidden");
+  state.player.tutorialDone = true;
+  if (typeof saveNow === "function") saveNow();
+}
+document.getElementById("tutNextBtn").addEventListener("click", () => {
+  if (tutorialStep === TUTORIAL_STEPS.length - 1) { finishTutorial(); return; }
+  tutorialStep++;
+  renderTutorialStep();
+});
+document.getElementById("tutSkipBtn").addEventListener("click", finishTutorial);
+
 /* ===== Toast ===== */
 function toast(msg){
   const t = document.createElement("div");

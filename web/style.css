@@ -603,6 +603,27 @@ body{
 .mod-option-desc{font-size:11px;color:var(--text-dim);margin-top:3px;}
 .mod-option-current-tag{font-size:10.5px;color:var(--gold);margin-top:6px;font-weight:700;}
 
+/* Tutorial overlay (first-session onboarding) */
+.tutorial-overlay{
+  position:fixed;inset:0;background:rgba(10,8,4,.82);z-index:200;
+  display:flex;align-items:center;justify-content:center;padding:20px;
+}
+.tutorial-card{
+  background:var(--card);border:1px solid var(--gold);border-radius:14px;
+  padding:22px 18px;max-width:340px;width:100%;text-align:center;
+}
+.tutorial-icon{font-size:40px;margin-bottom:10px;}
+.tutorial-title{
+  font-family:var(--font-display);font-weight:700;font-size:18px;
+  text-transform:uppercase;letter-spacing:.02em;color:var(--gold);margin-bottom:8px;
+}
+.tutorial-text{font-size:13.5px;color:var(--text);line-height:1.5;margin-bottom:16px;}
+.tutorial-dots{display:flex;justify-content:center;gap:6px;margin-bottom:16px;}
+.tutorial-dots span{width:6px;height:6px;border-radius:50%;background:var(--card-border);}
+.tutorial-dots span.active{background:var(--gold);}
+.tutorial-actions{display:flex;gap:8px;}
+.tutorial-actions .btn{flex:1;}
+
 /* Territory war */
 .war-vs-row{display:flex;align-items:center;gap:10px;}
 .war-side{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;text-align:center;}

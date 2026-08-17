@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Territory 2026 — прототип</title>
-<link rel="stylesheet" href="style.css?v=24">
+<link rel="stylesheet" href="style.css?v=25">
 </head>
 <body>
 <div class="phone">
@@ -390,9 +390,22 @@
 
 <div id="toast"></div>
 
+<div id="tutorialOverlay" class="tutorial-overlay hidden">
+  <div class="tutorial-card">
+    <div class="tutorial-icon" id="tutIcon">👋</div>
+    <div class="tutorial-title" id="tutTitle">Добро пожаловать</div>
+    <div class="tutorial-text" id="tutText"></div>
+    <div class="tutorial-dots" id="tutDots"></div>
+    <div class="tutorial-actions">
+      <button class="btn ghost" id="tutSkipBtn">Пропустить</button>
+      <button class="btn primary" id="tutNextBtn">Далее</button>
+    </div>
+  </div>
+</div>
+
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <script src="/socket.io/socket.io.js"></script>
-<script src="app.js?v=45"></script>
-<script src="persistence.js?v=11"></script>
+<script src="app.js?v=46"></script>
+<script src="persistence.js?v=12"></script>
 </body>
 </html>

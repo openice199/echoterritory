@@ -153,7 +153,7 @@
       level: 1,
       rep: 0,
       district: "Новый город",
-      avatarId: "default", nameChangesUsed: 0,
+      avatarId: "default", nameChangesUsed: 0, tutorialDone: false,
       hp: 80, maxHp: 80,
       exp: 0, maxExp: EXP_TABLE[0],
       rub: 500, stars: 0,
@@ -244,6 +244,7 @@
       if (typeof handleArenaEvent === "function") handleArenaEvent(evt, data);
     });
     const saved = await loadSave();
+    let isNewPlayer = false;
     if (applySave(saved)){
       toast(`С возвращением, ${state.player.name}!`);
       if (typeof resolveActiveJobOnLoad === "function"){
@@ -252,6 +253,7 @@
       }
     } else {
       startFresh();
+      isNewPlayer = true;
       toast(`Добро пожаловать в Химер-Сити, ${displayName}!`);
       saveNow(); // первый заход — сразу создаём запись
     }
@@ -263,6 +265,7 @@
     // level-up/экипировки.
     if (typeof recalcMaxHp === "function") recalcMaxHp();
     renderHome();
+    if (isNewPlayer && typeof startTutorial === "function") startTutorial();
     if (typeof refreshRealClan === "function"){
       refreshRealClan().then(renderHome);
     }
