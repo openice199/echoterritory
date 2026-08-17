@@ -2,7 +2,12 @@ require("dotenv").config({ quiet: true });
 const path = require("path");
 const http = require("http");
 const express = require("express");
+const session = require("express-session");
+const pgSession = require("connect-pg-simple")(session);
 const { validateInitData } = require("./telegramAuth");
+const browserApi = require("./browser/api");
+const browserDb = require("./browser/db");
+const { attachBrowserRealtime } = require("./browser/realtime");
 const {
   loadPlayer, savePlayer, listPlayers, deletePlayer,
   listClans, getClan, getClanForPlayer, createClan, joinClan, leaveClan, tryDeductRub,
@@ -330,11 +335,24 @@ app.post("/api/admin/set-level", requireAdmin, async (req, res) => {
   res.json({ ok: true, level: p.level, freePoints: p.freePoints });
 });
 
+/* ===== Territory Browser — отдельная браузерная игра на том же процессе/базе,
+   своя таблица browser_players и свой bcrypt-логин, смонтирована под /browser-api
+   и /browser (статика). Не трогает ничего из Telegram-игры выше. ===== */
+const browserSessionMiddleware = session({
+  store: new pgSession({ pool: browserDb.pool, tableName: "browser_session", createTableIfMissing: true }),
+  secret: process.env.BROWSER_SESSION_SECRET || "dev-secret-change-me",
+  resave: false,
+  saveUninitialized: false,
+  cookie: { httpOnly: true, maxAge: 30 * 24 * 60 * 60 * 1000, sameSite: "lax" },
+});
+app.use("/browser-api", browserSessionMiddleware, browserApi);
+
 // Отдаём статику игры тем же сервером — один процесс, один деплой.
 app.use(express.static(path.join(__dirname, "..", "web")));
 
 const httpServer = http.createServer(app);
 const io = setupRealtime(httpServer, { botToken: BOT_TOKEN, allowDevAuth: ALLOW_DEV_AUTH });
+attachBrowserRealtime(io, browserSessionMiddleware, browserDb);
 startWarSweep(io);
 startJobNotifySweep(BOT_TOKEN);
 

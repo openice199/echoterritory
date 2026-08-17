@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Territory — браузерная MMO</title>
+<link rel="stylesheet" href="style.css?v=1">
+</head>
+<body>
+
+<section id="authScreen" class="auth-screen">
+  <div class="auth-card">
+    <h1 class="brand">TERRITORY</h1>
+    <p class="brand-sub">Химер-Сити ждёт</p>
+
+    <div class="auth-tabs">
+      <button class="auth-tab active" data-tab="login">Вход</button>
+      <button class="auth-tab" data-tab="register">Регистрация</button>
+    </div>
+
+    <form id="loginForm" class="auth-form">
+      <input type="text" id="loginLogin" placeholder="Логин" autocomplete="username" required>
+      <input type="password" id="loginPassword" placeholder="Пароль" autocomplete="current-password" required>
+      <button type="submit" class="btn primary full">Войти</button>
+      <div class="auth-error" id="loginError"></div>
+    </form>
+
+    <form id="registerForm" class="auth-form hidden">
+      <input type="text" id="regLogin" placeholder="Логин (от 3 символов)" autocomplete="username" required>
+      <input type="password" id="regPassword" placeholder="Пароль (от 4 символов)" autocomplete="new-password" required>
+      <input type="email" id="regEmail" placeholder="Email (необязательно)" autocomplete="email">
+      <div class="gender-pick">
+        <label><input type="radio" name="gender" value="m" checked> Мужской</label>
+        <label><input type="radio" name="gender" value="f"> Женский</label>
+      </div>
+      <button type="submit" class="btn primary full">Создать персонажа</button>
+      <div class="auth-error" id="registerError"></div>
+    </form>
+  </div>
+</section>
+
+<div id="gameScreen" class="game-screen hidden">
+  <header class="topbar">
+    <div class="topbar-id">
+      <span class="p-name" id="pName">—</span>
+      <span class="p-level">ур. <b id="pLevel">1</b></span>
+    </div>
+    <div class="topbar-hp">
+      <div class="bar hp-bar"><div class="bar-fill" id="hpFill"></div></div>
+      <span id="hpText">0/0</span>
+    </div>
+    <div class="topbar-rub">Т <b id="pRub">0</b></div>
+    <button id="logoutBtn" class="icon-btn" title="Выйти">⏻</button>
+  </header>
+
+  <main class="layout">
+
+    <section class="panel panel-area">
+      <div class="panel-title">Локация</div>
+      <div class="area-breadcrumb" id="areaBreadcrumb">—</div>
+      <h2 class="area-name" id="areaName">—</h2>
+
+      <div class="area-block">
+        <div class="block-label">Выходы</div>
+        <div class="exits-row" id="exitsRow"></div>
+      </div>
+
+      <div class="area-block" id="npcBlock">
+        <div class="block-label">Кто здесь</div>
+        <div class="npc-row" id="npcRow"></div>
+      </div>
+
+      <div class="area-block hidden" id="shopBlock">
+        <div class="block-label">Магазин</div>
+        <div class="shop-grid" id="shopGrid"></div>
+      </div>
+    </section>
+
+    <section class="panel panel-chat">
+      <div class="panel-title">Чат района <span class="online-count" id="onlineCount"></span></div>
+      <div class="chat-log" id="chatLog"></div>
+      <form id="chatForm" class="chat-form">
+        <input type="text" id="chatInput" placeholder="Сообщение..." maxlength="300" autocomplete="off">
+        <button type="submit" class="btn small">➤</button>
+      </form>
+    </section>
+
+    <section class="panel panel-character">
+      <div class="panel-title">Персонаж</div>
+
+      <div class="stats-block">
+        <div class="stat-row"><span>Сила</span><b id="statStr">3</b><button class="stat-plus" data-stat="str">+</button></div>
+        <div class="stat-row"><span>Ловкость</span><b id="statDex">3</b><button class="stat-plus" data-stat="dex">+</button></div>
+        <div class="stat-row"><span>Здоровье</span><b id="statHealth">4</b><button class="stat-plus" data-stat="health">+</button></div>
+        <div class="free-points" id="freePoints"></div>
+      </div>
+
+      <div class="doll-block">
+        <div class="doll-col">
+          <div class="doll-slot" data-slot="ac" data-label="Кольцо"></div>
+          <div class="doll-slot" data-slot="lh" data-label="Лев. рука"></div>
+          <div class="doll-slot" data-slot="no" data-label="Броня"></div>
+          <div class="doll-slot" data-slot="vo" data-label="Куртка"></div>
+        </div>
+        <div class="doll-portrait" id="dollPortrait">🧍</div>
+        <div class="doll-col">
+          <div class="doll-slot" data-slot="gu" data-label="Шлем"></div>
+          <div class="doll-slot" data-slot="rh" data-label="Прав. рука"></div>
+          <div class="doll-slot" data-slot="sh" data-label="Брюки"></div>
+          <div class="doll-slot" data-slot="bo" data-label="Сапоги"></div>
+        </div>
+      </div>
+
+      <div class="block-label">Рюкзак</div>
+      <div class="inventory-grid" id="inventoryGrid"></div>
+    </section>
+
+  </main>
+</div>
+
+<div id="fightOverlay" class="fight-overlay hidden">
+  <div class="fight-card">
+    <div class="fight-vs">
+      <div class="fight-side">
+        <div class="fight-name" id="fightSelfName">Вы</div>
+        <div class="bar hp-bar"><div class="bar-fill" id="fightSelfHpFill"></div></div>
+        <div id="fightSelfHpText">0/0</div>
+      </div>
+      <div class="fight-vs-label">VS</div>
+      <div class="fight-side">
+        <div class="fight-name" id="fightNpcName">—</div>
+        <div class="bar hp-bar"><div class="bar-fill" id="fightNpcHpFill"></div></div>
+        <div id="fightNpcHpText">0/0</div>
+      </div>
+    </div>
+
+    <div class="fight-log" id="fightLog"></div>
+
+    <div class="fight-controls">
+      <div class="zone-pick">
+        <div class="zone-label">Атака</div>
+        <div class="zone-buttons" id="atkZones">
+          <button data-zone="head">Голова</button>
+          <button data-zone="chest">Грудь</button>
+          <button data-zone="groin">Пах</button>
+          <button data-zone="legs">Ноги</button>
+        </div>
+      </div>
+      <div class="zone-pick">
+        <div class="zone-label">Блок</div>
+        <div class="zone-buttons" id="blkZones">
+          <button data-zone="head">Голова</button>
+          <button data-zone="chest">Грудь</button>
+          <button data-zone="groin">Пах</button>
+          <button data-zone="legs">Ноги</button>
+        </div>
+      </div>
+    </div>
+    <div class="fight-actions">
+      <button class="btn primary" id="fightTurnBtn" disabled>Ударить</button>
+      <button class="btn ghost" id="fightFleeBtn">Бежать</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="app.js?v=1"></script>
+</body>
+</html>
